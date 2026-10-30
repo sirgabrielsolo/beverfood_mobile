@@ -1,16 +1,33 @@
-# beverfood_mobile
+# Beverfood Mobile
 
-A new Flutter project.
+Flutter e-commerce app for food & beverages.
 
-## Getting Started
+## Requirements
 
-This project is a starting point for a Flutter application.
+- [Flutter SDK](https://docs.flutter.dev/get-started/install) (Dart 3.9 or newer)
+- An Android emulator, an iOS simulator or a connected device
+- Internet connection: product and promo images are loaded from the web
 
-A few resources to get you started if this is your first Flutter project:
+## Run
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```bash
+# Install dependencies
+flutter pub get
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+# List available devices
+flutter devices
+
+# Run the app (on the only connected device)
+flutter run
+
+# Run on a specific device
+flutter run -d <device-id>
+```
+
+While the app is running in the terminal, press `r` to hot reload, `R` to hot restart and `q` to quit.
+
+## Test
+
+```bash
+flutter test
+```
