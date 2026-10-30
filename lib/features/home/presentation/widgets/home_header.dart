@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:beverfood_mobile/app/app_assets.dart';
 import 'package:beverfood_mobile/app/router.dart';
 
-/// Search bar plus profile avatar shown at the top of the home page.
+/// Brand logo plus search bar shown at the top of the home page.
 class HomeHeader extends StatelessWidget {
   const HomeHeader({super.key});
 
+  /// Matches the search bar so the two line up as one row.
+  static const _height = 48.0;
+
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-
     return Row(
       children: [
+        Image.asset(
+          AppAssets.logo,
+          height: _height,
+          semanticLabel: 'Beverfood',
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: TextField(
             textInputAction: TextInputAction.search,
@@ -24,20 +32,7 @@ class HomeHeader extends StatelessWidget {
             decoration: const InputDecoration(
               hintText: 'Cerca vini, birre, caffè…',
               prefixIcon: Icon(Icons.search_rounded),
-              constraints: BoxConstraints.tightFor(height: 48),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Semantics(
-          button: true,
-          label: 'Profilo',
-          child: GestureDetector(
-            onTap: () => context.go(AppRoutes.profile),
-            child: CircleAvatar(
-              radius: 24,
-              backgroundColor: primary.withValues(alpha: 0.15),
-              child: Icon(Icons.person_rounded, color: primary),
+              constraints: BoxConstraints.tightFor(height: _height),
             ),
           ),
         ),

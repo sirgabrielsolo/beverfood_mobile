@@ -19,47 +19,52 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          const SliverAppBar(
-            // Pinned so the search bar is always reachable and content never
-            // scrolls under the status bar.
-            pinned: true,
-            toolbarHeight: 72,
-            titleSpacing: 16,
-            title: HomeHeader(),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: PromoCarousel(
-                promos: _promoRepository.getActivePromos(),
-                onPromoTap: (promo) => context.go(
-                  AppRoutes.productsWith(category: promo.category),
+      // The header scrolls away with the content; the safe area keeps the
+      // status bar clear so content never scrolls underneath it.
+      body: SafeArea(
+        bottom: false,
+        child: CustomScrollView(
+          slivers: [
+            const SliverAppBar(
+              toolbarHeight: 76,
+              titleSpacing: 16,
+              title: Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: HomeHeader(),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 28),
+                child: PromoCarousel(
+                  promos: _promoRepository.getActivePromos(),
+                  onPromoTap: (promo) => context.go(
+                    AppRoutes.productsWith(category: promo.category),
+                  ),
                 ),
               ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: SectionHeader(
-              title: 'Novità',
-              onSeeAll: () => context.go(AppRoutes.products),
+            SliverToBoxAdapter(
+              child: SectionHeader(
+                title: 'Novità',
+                onSeeAll: () => context.go(AppRoutes.products),
+              ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: NewArrivalsCarousel(
-              products: _productRepository.getNewArrivals(),
+            SliverToBoxAdapter(
+              child: NewArrivalsCarousel(
+                products: _productRepository.getNewArrivals(),
+              ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: SectionHeader(
-              title: 'Più popolari',
-              onSeeAll: () => context.go(AppRoutes.products),
+            SliverToBoxAdapter(
+              child: SectionHeader(
+                title: 'Più popolari',
+                onSeeAll: () => context.go(AppRoutes.products),
+              ),
             ),
-          ),
-          PopularProductsSection(products: _productRepository.getPopular()),
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
-        ],
+            PopularProductsSection(products: _productRepository.getPopular()),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          ],
+        ),
       ),
     );
   }

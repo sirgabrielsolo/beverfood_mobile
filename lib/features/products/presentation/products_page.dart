@@ -49,33 +49,38 @@ class _ProductsPageState extends State<ProductsPage> {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Prodotti')),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: TextField(
-                controller: _searchController,
-                textInputAction: TextInputAction.search,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  hintText: 'Cerca vini, birre, caffè…',
-                  prefixIcon: Icon(Icons.search_rounded),
+      // The title bar scrolls away with the content; the safe area keeps the
+      // status bar clear so content never scrolls underneath it.
+      body: SafeArea(
+        bottom: false,
+        child: CustomScrollView(
+          slivers: [
+            const SliverAppBar(title: Text('Prodotti')),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: TextField(
+                  controller: _searchController,
+                  textInputAction: TextInputAction.search,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    hintText: 'Cerca vini, birre, caffè…',
+                    prefixIcon: Icon(Icons.search_rounded),
+                  ),
                 ),
               ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: CategoryChips(
-              selected: _category,
-              onSelected: (category) => setState(() => _category = category),
+            SliverToBoxAdapter(
+              child: CategoryChips(
+                selected: _category,
+                onSelected: (category) => setState(() => _category = category),
+              ),
             ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 20)),
-          ProductSliverGrid(products: products),
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
-        ],
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            ProductSliverGrid(products: products),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          ],
+        ),
       ),
     );
   }
