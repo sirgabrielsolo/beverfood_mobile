@@ -76,7 +76,9 @@ as well, so they aren't proposed again.
 - **Spacing:** the promo banners moved lower; the gap from the search bar grew from about 20 to 36 pt.
 - **Scroll performance:** measured with the performance overlay after removing the frosted header (see below).
   Once images are cached, Home and Prodotti have the same frame times.
-- **Docs:** created `CLAUDE.md` and this file.
+- **Docs:** created `CLAUDE.md` and this file. Rewrote `README.md` with just the commands to run the app.
+- **Profilo:** removed the "Accesso, ordini…" subtitle under "Area personale" and the description under
+  "Segui impostazione del dispositivo". The setting rows are now just a title and a switch.
 
 **Decisions / rejected approaches** (the user asked to revert each of these; don't propose them again)
 - A colored background band behind the header and promos, fading out before "Novità".

@@ -29,9 +29,6 @@ class ProfilePage extends StatelessWidget {
               children: [
                 _SwitchTile(
                   title: 'Segui impostazione del dispositivo',
-                  description:
-                      'Con questa opzione attiva, la modalità scura si attiverà '
-                      'quando è attiva sul tuo dispositivo',
                   value: followDevice,
                   // Turning it off keeps the theme currently on screen.
                   onChanged: (follow) => themeMode.setMode(
@@ -74,20 +71,10 @@ class _ProfileHeader extends StatelessWidget {
           child: Icon(Icons.person_rounded, size: 30, color: primary),
         ),
         const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Area personale',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Accesso, ordini e indirizzi saranno disponibili a breve.',
-                style: TextStyle(color: context.palette.textSecondary),
-              ),
-            ],
+        const Expanded(
+          child: Text(
+            'Area personale',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
         ),
       ],
@@ -112,18 +99,15 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-/// Setting row: title and switch, with an optional explanation underneath.
-/// The whole row is tappable.
+/// Setting row: title and switch. The whole row is tappable.
 class _SwitchTile extends StatelessWidget {
   const _SwitchTile({
     required this.title,
     required this.value,
     required this.onChanged,
-    this.description,
   });
 
   final String title;
-  final String? description;
   final bool value;
 
   /// `null` disables the row.
@@ -139,37 +123,20 @@ class _SwitchTile extends StatelessWidget {
         child: Opacity(
           opacity: enabled ? 1 : 0.5,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 12, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Switch(value: value, onChanged: onChanged),
-                  ],
-                ),
-                if (description != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 56),
-                    child: Text(
-                      description!,
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        height: 1.35,
-                        color: context.palette.textSecondary,
-                      ),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
+                ),
+                const SizedBox(width: 12),
+                Switch(value: value, onChanged: onChanged),
               ],
             ),
           ),
