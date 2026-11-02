@@ -4,7 +4,8 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- Debug builds may talk to a local beverfood_web over plain HTTP
-         (--dart-define=API_BASE_URL=http://10.0.2.2:5000). -->
+    <!-- Debug builds may talk to a local beverfood_web over plain HTTP,
+         e.g. with the dart-define API_BASE_URL=http://10.0.2.2:5000.
+         (No double hyphen in here: XML comments can't contain one.) -->
     <application android:usesCleartextTraffic="true"/>
 </manifest>
