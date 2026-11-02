@@ -1,46 +1,43 @@
-import 'package:beverfood_mobile/core/network/unsplash.dart';
-import 'package:beverfood_mobile/features/products/models/product.dart';
+import 'package:flutter/widgets.dart';
+
+import 'package:beverfood_mobile/core/network/api_client.dart';
 import 'package:beverfood_mobile/features/promotions/models/promo.dart';
 
-/// In-memory promotions. Swap for an API-backed implementation once the
-/// backend is available.
+/// The active promotions, from the web app's API.
 class PromoRepository {
-  const PromoRepository();
+  PromoRepository(this._api);
 
-  List<Promo> getActivePromos() => _promos;
+  final ApiClient _api;
+
+  /// Active promos in the order of the Home banners. Throws [ApiException]
+  /// when the server can't be reached.
+  Future<List<Promo>> getActivePromos() async {
+    final json = await _api.getJson('/api/v1/promos') as Map<String, Object?>;
+    return [
+      for (final promo in json['promos'] as List)
+        Promo.fromJson(promo as Map<String, Object?>),
+    ];
+  }
 }
 
-final _promos = [
-  Promo(
-    id: 'wine-week',
-    highlight: 'Fino al -30%',
-    title: 'Settimana del vino',
-    subtitle: 'Rossi, bianchi e bollicine selezionati',
-    imageUrl: unsplashImage('1510812431401-41d2bd2722f3', width: 1000),
-    category: ProductCategory.wine,
-  ),
-  Promo(
-    id: 'craft-beer',
-    highlight: '-20%',
-    title: 'Birre artigianali',
-    subtitle: 'Solo per questo weekend',
-    imageUrl: unsplashImage('1584225064785-c62a8b43d148', width: 1000),
-    category: ProductCategory.beer,
-  ),
-  Promo(
-    id: 'aperitivo',
-    highlight: '3x2',
-    title: 'Aperitivo in casa',
-    subtitle: 'Sui kit cocktail pronti',
-    imageUrl: unsplashImage('1551024709-8f23befc6f87', width: 1000),
-    category: ProductCategory.cocktail,
-  ),
-  Promo(
-    id: 'coffee-break',
-    highlight: '-15%',
-    title: 'Pausa caffè',
-    subtitle: 'Miscele, grani e tè',
-    imageUrl: unsplashImage('1495474472287-4d71bcdd2085', width: 1000),
-    category: ProductCategory.coffee,
-  ),
-];
+/// Exposes the app's [PromoRepository]; `BeverfoodApp` owns it, so tests can
+/// pass one backed by a fake HTTP client.
+class PromoRepositoryScope extends InheritedWidget {
+  const PromoRepositoryScope({
+    super.key,
+    required this.repository,
+    required super.child,
+  });
+
+  final PromoRepository repository;
+
+  static PromoRepository of(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<PromoRepositoryScope>()!
+        .repository;
+  }
+
+  @override
+  bool updateShouldNotify(PromoRepositoryScope oldWidget) =>
+      repository != oldWidget.repository;
+}

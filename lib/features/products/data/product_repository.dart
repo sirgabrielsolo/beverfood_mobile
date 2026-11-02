@@ -1,5 +1,6 @@
 import 'package:beverfood_mobile/core/network/unsplash.dart';
 import 'package:beverfood_mobile/features/products/models/product.dart';
+import 'package:beverfood_mobile/features/products/models/product_sort.dart';
 
 /// In-memory catalogue. Swap for an API-backed implementation once the
 /// backend is available; the public methods are what the UI relies on.
@@ -12,9 +13,13 @@ class ProductRepository {
 
   List<Product> getPopular() => _products.where((p) => p.isPopular).toList();
 
-  List<Product> search({String query = '', ProductCategory? category}) {
+  List<Product> search({
+    String query = '',
+    ProductCategory? category,
+    ProductSort sort = ProductSort.recommended,
+  }) {
     final normalizedQuery = query.trim().toLowerCase();
-    return _products.where((p) {
+    final results = _products.where((p) {
       final matchesCategory = category == null || p.category == category;
       final matchesQuery =
           normalizedQuery.isEmpty ||
@@ -22,8 +27,57 @@ class ProductRepository {
           p.category.label.toLowerCase().contains(normalizedQuery);
       return matchesCategory && matchesQuery;
     }).toList();
+
+    return switch (sort) {
+      ProductSort.recommended => results,
+      ProductSort.popular => _stableSorted(
+        results,
+        (a, b) => _rank(b.isPopular) - _rank(a.isPopular),
+      ),
+      ProductSort.priceAscending => _stableSorted(
+        results,
+        (a, b) => a.price.compareTo(b.price),
+      ),
+      ProductSort.priceDescending => _stableSorted(
+        results,
+        (a, b) => b.price.compareTo(a.price),
+      ),
+      ProductSort.name => _stableSorted(
+        results,
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      ),
+    };
+  }
+
+  /// Cover image for a category tile.
+  String categoryImageUrl(ProductCategory category) {
+    return unsplashImage(_categoryPhotoIds[category]!, size: 200);
+  }
+
+  static int _rank(bool value) => value ? 1 : 0;
+
+  /// Sorts by [compare], keeping the catalogue order among equal items
+  /// (`List.sort` isn't stable).
+  static List<Product> _stableSorted(
+    List<Product> products,
+    int Function(Product a, Product b) compare,
+  ) {
+    final position = {for (final (i, p) in products.indexed) p.id: i};
+    return [...products]..sort((a, b) {
+      final result = compare(a, b);
+      return result != 0 ? result : position[a.id]! - position[b.id]!;
+    });
   }
 }
+
+const _categoryPhotoIds = {
+  ProductCategory.wine: '1586370434639-0fe43b2d32e6',
+  ProductCategory.beer: '1608270586620-248524c67de9',
+  ProductCategory.cocktail: '1513558161293-cdaf765ed2fd',
+  ProductCategory.coffee: '1559056199-641a0ac8b55e',
+  ProductCategory.softDrink: '1600271886742-f049cd451bba',
+  ProductCategory.food: '1486297678162-eb2a19b0a32d',
+};
 
 final _products = [
   // Novità

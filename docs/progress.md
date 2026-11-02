@@ -9,20 +9,37 @@ as well, so they aren't proposed again.
 
 ## Next up
 
+- [ ] **Upload the promo images and deploy the API** (user). Upload the 14 PNGs in
+      `beverfood_ops/assets/png_upload/promo/` to Cloudinary (`<id>.png` replaces each promo's product image,
+      `promo_banner_<id>.png` is new), then push beverfood_web (`api.py`, `promos.py`, `app.py`) so production
+      serves `/api/v1/promos`. Until then the app's banners show the "image missing" placeholder.
+- [ ] **Checkout notes.** When the order is built: the client can write notes; the manager sees them followed by
+      each promo's `PromoSelection.orderNote`. The client sees the mix in the cart, not the note.
+- [ ] **Cart page** must list promo lines (with their mix) next to products; `CartController` already holds them.
+- [ ] **Novità from the API**, then **Più popolari**, then the rest of the catalogue (the user's order). Product
+      names in the DB are agent-style upper case ("LILIA NATURALE 500 ML 24 PZ"): decide how the app shows them.
 - [ ] **Product detail page.** Product cards aren't tappable yet.
-- [ ] **Cart.** Cart state, add-to-cart, and a badge on the cart tab. The cart page is a placeholder.
+- [ ] **Cart.** `CartController` already holds quantities in memory and the cards' add button / stepper use it.
+      Still to do: persistence, the cart page (a placeholder today), the cart-tab count badge, and showing
+      `CartBar` ("Vai al carrello · N articoli", the agreed design) above the nav while the cart isn't empty.
+      Scrolling pages then need about 170 pt of bottom padding so the last row clears the bar.
+- [ ] **Favourites.** The heart on cards toggles in memory only (`FavouritesController`). Persist it and decide
+      where the list is shown.
 - [ ] **Profile.** Login, orders and addresses. Today the page only has the theme settings.
-- [ ] **Backend.** Replace the in-memory `ProductRepository` / `PromoRepository` with API calls.
-- [ ] **Images.** Persistent image caching, decoding at display size and precaching the first images.
-      This would remove the small stutter on the very first scroll of Home.
+- [ ] **Backend.** Promos come from beverfood_web's API; `ProductRepository` is still in memory (see above).
+      Decide whether `/api/v1` stays public (today: catalogue only, no auth) once client login exists.
+- [ ] **Images.** Images are now decoded at display size. Still to do: persistent disk caching and precaching,
+      for the slower first scroll while images download and decode. On the phone, Home's first pass had raster
+      p90 9–18 ms depending on the run, against about 7 ms once the images were cached.
+- [ ] **Performance on the phone.** Check the first scroll of each page (image download and decode) on the CPH2399
+      after today's fixes. If the theme switch still feels slow, the `NavigationBar` is the next cost to cut.
 - [ ] **Search.** Matching is only on name and category label, so "birra" doesn't find "Fusto IPA".
       Consider synonyms or tags.
 - [ ] **Branding before release.**
   - Android app label is still `beverfood_mobile` and `applicationId` is `com.example.beverfood_mobile`.
   - Launcher icons (Android/iOS) and the web manifest icons (`Icon-192/512`) are still Flutter defaults.
 - [ ] **Open asset questions.**
-  - `logo.png` has transparent lettering, so the letters take the page color (dark in dark mode).
-    Ask for a white-lettering variant if the letters should always be white.
+  - On Home the logo is tinted white in code (`Image.asset(color: …)`), so its transparent lettering shows the red header.
   - `assets/images/placeholders/no_image.png` isn't bundled because it's a light image.
     Decide whether to use it (it would need a dark variant).
 
@@ -93,3 +110,178 @@ as well, so they aren't proposed again.
 - During emulator testing the saved theme switched back to light twice between runs.
   Checked on device: the setting survives both a force-stop and a `flutter run` reinstall, and the stored value
   always matched what was shown. No code bug found.
+
+### 2026-10-31
+
+**Done**
+- New Home and Prodotti UI from the user's handoff (`beverfood-ui-handoff.zip`, kept out of git via `.gitignore`).
+  - **Home**
+    - Red header: the logo (tinted white, so the cut-out lettering shows the red) and "Beverfood", then the
+      search bar. The logo row scrolls away; the search bar stays pinned at the top.
+    - Promo cards: 300×124, yellow first then dark, text left and photo right, no page dots.
+    - "Novità" and "Più popolari" are now horizontal rails of the new product card ("NUOVO" badge on Novità).
+    - Category tiles (image card plus label, one per category) between "Novità" and "Più popolari", under a
+      "Categorie" title. A tile opens Prodotti on that category's tab.
+  - **Prodotti:** "Prodotti" title with a "Filtra e ordina" button (bottom sheet: Consigliati, Più popolari,
+    Prezzo crescente/decrescente, Nome), the search bar, then pinned scrollable category tabs with an underline
+    indicator, then a 2-column grid.
+  - **Product card** (shared): surface card, square image, heart, two-line name, price, and an add button that
+    turns into a −/1/+ stepper. Quantities and favourites are in memory and shared across screens.
+  - **Nav bar:** handoff styling (surface background, top hairline, labels always visible, pink indicator),
+    keeping the existing icons.
+- New tokens from the handoff: brand red `#C8174A` (replaces bordeaux), yellow accent `#FFC93C`, warmer
+  greys, and a pink `brandText` for text/icons in dark mode. Nunito Sans is bundled as the app font.
+- Built `CartBar` but it isn't shown yet. `CartController` / `FavouritesController` are in memory.
+- Tests: category tile opens the tab, cart state shared between Home and Prodotti, sorting, and no overflow at
+  360 dp with 1.3× text.
+- Fixed: Home category tiles kept their light background after switching to dark mode (the color was read
+  through the list builder's context).
+
+**Decisions**
+- **Kept from the current app, not taken from the handoff:**
+  - The small corner radii (`AppRadii`); the Home header's bottom corners use 10 too.
+  - The bottom-nav icons.
+  - Search is still a real text field: Home opens Prodotti filtered, and Prodotti filters live. The handoff
+    had a button that opens a separate search screen.
+- **Home header is red in dark mode too** (the handoff had a dark maroon), so the logo always sits on the same red.
+- **No tagline** ("Vini, birre, caffè e altro") under the name.
+- **Category tiles are a horizontal list**, not the handoff's 4-column grid, because there are 6 categories.
+- **"Vai al carrello" bar:** the design is approved for later and kept as `CartBar`, but it stays hidden until
+  the real cart exists.
+- **Card buttons work in memory** (user's choice), rather than being hidden or inert until the cart exists.
+- The theme change also restyles Carrello and Profilo (colors and font); their page files weren't touched.
+
+### 2026-10-31 (afternoon)
+
+**Done**
+- Home: "Più popolari" now comes before "Categorie".
+- **Scroll performance**, measured with a new `integration_test/scroll_performance_test.dart` (profile mode on the
+  emulator; command in `CLAUDE.md`). Second pass over each page, average raster time:
+  - Home: about 15 ms with roughly 255 of 306 frames over budget, down to 3.7–10 ms (0–143 over budget; the emulator
+    is noisy).
+  - Prodotti: 7.7 ms with 135 over budget, down to about 2.7 ms with 0–2 over budget.
+  - Fixes: removed unneeded clips (header, promo cards, card buttons, horizontal lists), faded the logo by color instead
+    of `Opacity`, decoded images at display size (square Unsplash crops), and replaced Home's search text field.
+- Home's search bar is now a button styled as the field. It opens Prodotti with the search field focused and the
+  keyboard up, and results filter as you type. Bisecting showed the real text field in the pinned header alone cost
+  about 10 ms of raster per frame.
+- Published an options page for the user: dark-mode header and search colors (5 variants with contrast figures) and
+  three add-to-cart alternatives with live demos, based on Baymard Institute research.
+
+**Decisions**
+- The user handles all git commits and branches; don't commit or create branches.
+- Search from Home moved to Prodotti (the handoff's original behavior) for scroll performance.
+- The first-scroll cost of image download and decode remains. Experiments showed it disappears without network images.
+
+### 2026-10-31 (evening)
+
+**Done**
+- **Dark-mode Home header:** the user picked "Dark header" from the options page
+  (https://claude.ai/artifact/Ak4aapAPkCsJw64f171T19). In dark mode the header is `#241E21`, the search field
+  `#362D31` with `#ABA1A5` icon and hint, the name `#F7F2F3`, and the logo keeps its own red. Light mode is unchanged
+  (red header, white field). New palette tokens: `header`, `onHeader`, `headerLogoTint`, `headerField`, `onHeaderField`.
+  The logo now fades through `Image.opacity`, which also works untinted and doesn't add a layer.
+- **Add to cart:** the user picked the full-width "Aggiungi". The card now has the price on its own line and a 38 pt
+  red bar with a cart icon and "Aggiungi". After the first tap the label slides up and a stepper of the same size slides
+  in: bin at quantity 1 (semantics "Rimuovi dal carrello"), minus above 1, the quantity (it briefly grows when it
+  changes), plus. Cards are about 28 pt taller; `ProductCard.textHeight` was updated.
+- Tests: the cart test covers the bin at quantity 1; the dark-mode test checks the header color; the category tile
+  test scrolls further because the taller cards pushed the tile behind the nav bar.
+- Scroll performance after the change (6 emulator runs, second pass): typically about 4 ms raster on Home and
+  3 ms on Prodotti with 0–3 frames over budget, as before. Some runs were slow on every frame (emulator noise).
+
+**Decisions**
+- Rejected alternatives on the options page (not to propose again unless asked): "Tonal red", "White field" and
+  "Handoff original" headers; "+" on the photo corner; filled "+" that stretches into the stepper; the old outlined "+".
+- The add bar's slide animation clips only while it runs, so cards at rest have no clip while scrolling.
+
+### 2026-11-01
+
+**Done**
+- Tested on the user's phone (CPH2399, Dimensity 1200, 90 Hz display, so about 11 ms per frame). Home felt smooth;
+  Prodotti and the light/dark switch didn't. Measured with the performance test in profile mode on the phone, which now
+  also times four theme switches from Profilo.
+- **Prodotti scrolling.** `ProductSliverGrid` sized its cells with a `SliverLayoutBuilder`. That builder runs again
+  whenever the sliver constraints change, and those include the scroll offset, so every visible card rebuilt on every
+  scroll frame. A custom `SliverGridDelegate` now sizes the cells at layout time.
+  - Build time (second pass): avg 4.5 → 1.5 ms, p90 8.7 → 2.3 ms, p99 13–17 → 6–8 ms. Raster was already fine at about
+    5.4 ms. Traced afterwards, no UI-thread frame was over budget.
+- **Theme switch.** Before: 200 ms of frames at up to 65 ms each. After: one frame of about 30 ms at the moment of the
+  tap (about 26 ms without the accessibility pass the test turns on).
+  - The theme is set by a `Theme` in `MaterialApp.router(builder:)`, so a switch no longer rebuilds the MaterialApp,
+    the router and every page. It applies instantly, without the 200 ms interpolation.
+  - New `BranchStack` (`lib/app/shell/`) replaces `StatefulShellRoute.indexedStack`'s container. Tabs not on screen keep
+    their last theme until they're opened, so a switch from Profilo doesn't rebuild Home's and Prodotti's cards.
+    `Theme` creates a new Cupertino theme each time it builds, and `Theme.of` depends on it, so `BranchStack` provides a
+    stable one; without that every card still rebuilt.
+  - The "Filtra e ordina" button is its own widget, so a theme change doesn't rebuild all of Prodotti.
+- New test: "a theme switch rebuilds only the tab on screen" (no `ProductCard` rebuilds in background tabs, and the
+  cards are dark once Prodotti is opened).
+
+**Decisions / trade-offs**
+- No theme cross-fade. The switch is instant, which is what makes it cheap.
+- After a switch, opening Home or Prodotti for the first time rebuilds that tab with the new theme. That costs one
+  frame when the tab opens, rather than on the switch.
+- What's left in the switch frame is mostly the `NavigationBar` (its four destinations), Profilo and the repaint.
+  A lighter custom nav bar would cut it further if it still feels slow.
+
+### 2026-11-02
+
+**Done**
+- **Connected to beverfood_web** (the agents' Flask app on Render, same product DB). Read its structure and data:
+  the PROMO category (99) has 7 active promos (91, 92, 93, 95, 98, 99, 901; 94 Ceres is inactive).
+- **Promo images.** The old ones had white text on transparency, invisible on the web's light card. Published an
+  options page (https://claude.ai/artifact/VMge2md1CKKvRYTuU5PyLJ) with the real Cloudinary cut-outs: three image
+  styles (A Formula, B Vetrina, C Locandina), three app banner layouts and two tints.
+  - User's choice: **C · Locandina**, **layout 3 · image only**, **one tint per promo**, banner order
+    **92, 93, 95, 99, 91, 98, 901**, a single bottle for Alix (901).
+  - Rendered 7 square `<id>.png` (800×800, for Cloudinary/web) and 7 `promo_banner_<id>.png` (900×372 = 3× the
+    300×124 pt banner) into `beverfood_ops/assets/png_upload/promo/`. The generator (HTML + cut-outs) and
+    `render.sh` are in `beverfood_ops/scripts/promo_banners/`.
+- **API in beverfood_web** (not committed; the user handles git): `api.py` (`GET /api/v1/promos`, public,
+  read-only) and `promos.py` (banner texts, order, banner version and each promo's rule). Registered in `app.py`;
+  its CLAUDE.md documents it.
+- **App:** `ApiClient` (`package:http`, `API_BASE_URL` dart-define, production by default), API-backed
+  `PromoRepository` with `PromoRepositoryScope`, new `Promo` model (rule groups), `PromoSection` (placeholders while
+  loading, "Promozioni non disponibili · Riprova" on failure), `PromoBanner` (image-only banner). Checked end to end
+  with a web build against the local server. Tests: promos from a `MockClient` (an image banner plus the text
+  fallback), and retry after a failed load.
+- Published proposals for the **promo detail page** and **price + IVA** display
+  (https://claude.ai/artifact/9BYuZ1Gk5yLB5ycY3jzhX3).
+
+**Decisions**
+- Promo data confirmed by the user: Estathè 4+1 is 5181, 5182, 51831, **51841** → 5041 free; 51777 is Basil Lemon
+  (its photo shows Touch of Lime; kept until there's a better one); the Pepsi gift 51711 is **Pepsi Zero** (its
+  photo shows a Pepsi Max); Foscaro's highlight is "Esclusiva"; Lilia is 92.
+- **Banner texts live on the server** (`promos.py`, later a DB column), not in the app. With image-only banners the
+  texts are baked into the PNG; the API's copy is used for accessibility and the detail page.
+- **Prices:** shown like the agents' app, net + IVA. The user will pick the UI.
+- **Orders:** a promo stays one line in the order/CSV, as for agents; the client's mixed choices will be a
+  front-end option.
+- Rejected on the options page: styles A Formula and B Vetrina, layouts 1 (text + image) and 2 (full-bleed image),
+  the single Beverfood tint.
+
+### 2026-11-02 (afternoon)
+
+**Done**
+- **Promo page** (`PromoPage`, route `/promo/:id`, full screen): the user combined the proposals: **D2's banner on
+  top, D1's content below**, without repeating the title (it's in the banner), starting from the price and
+  "Risparmi". Groups as cards: fixed products "× n", mixed groups with counter, progress bar and steppers, gifts with
+  an "OMAGGIO" badge. 38 pt bottom bar: "Scegli ancora N [in omaggio]" → "Aggiungi · price + IVA" → "Nel carrello" with
+  a bin → "Aggiorna il carrello" if the mix changes. Home banners now open it.
+- `PromoSelection` model (mix, missing items, list value, savings, order note) and promo lines in `CartController`.
+- **Prices "+ IVA"** (`NetPriceText`, choice "P2 · Suffisso") on the product card and the promo page.
+- `splitProductName` for the database names, `palette.cutoutBackground` for cut-outs, `AppNetworkImage(fit:)`.
+- Tests: unit tests for names and selections (Lilia, Alix), a widget test of the whole promo flow (pick, add, change,
+  update, remove, back). 18 passing. Checked the page in a web build against the local API (Lilia and Coca).
+
+**Decisions**
+- **One of each promo per order** (several different promos are fine): no bundle quantity on the page.
+- The client's mix is kept with the cart line and shown to the client in the cart; at checkout it's **appended to
+  the order notes** (after the client's own notes) for the manager, as agents do today.
+- **Show "Risparmi"** (list value of paid + free items − promo price). **No promo descriptions** in the app (they're
+  written for agents).
+- The bottom bar is 38 pt like the cards' "Aggiungi" bar (the user asked for it as tall as the quantity stepper, which
+  went away with "one per order").
+- Rejected from the proposals: D3 Passi, D2's receipt content, D1's square image and title; prices P1, P3, P4.
+
