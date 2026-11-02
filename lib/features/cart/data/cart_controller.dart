@@ -40,6 +40,14 @@ class CartController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Empties the cart, e.g. when the client signs out.
+  void clear() {
+    if (_lines.isEmpty && _promos.isEmpty) return;
+    _lines.clear();
+    _promos.clear();
+    notifyListeners();
+  }
+
   void removePromo(int promoId) {
     if (_promos.remove(promoId) != null) notifyListeners();
   }

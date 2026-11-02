@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -10,7 +11,7 @@ import 'package:beverfood_mobile/app/app.dart';
 import 'package:beverfood_mobile/app/theme/app_palette.dart';
 import 'package:beverfood_mobile/app/theme/theme_mode_controller.dart';
 import 'package:beverfood_mobile/core/network/api_client.dart';
-import 'package:beverfood_mobile/features/promotions/data/promo_repository.dart';
+import 'package:beverfood_mobile/features/auth/data/token_store.dart';
 import 'package:beverfood_mobile/features/products/presentation/widgets/product_card.dart';
 
 Future<ThemeModeController> _themeModeController() async {
@@ -18,17 +19,143 @@ Future<ThemeModeController> _themeModeController() async {
   return ThemeModeController(await SharedPreferences.getInstance());
 }
 
-Future<void> _pumpApp(
+/// Builds the app against [server] (a new one by default), signed in unless
+/// [signedIn] is false.
+Future<_FakeServer> _pumpApp(
   WidgetTester tester,
   ThemeModeController controller, {
-  PromoRepository? promos,
-}) {
-  return tester.pumpWidget(
+  _FakeServer? server,
+  bool signedIn = true,
+}) async {
+  server ??= _FakeServer();
+  await tester.pumpWidget(
     BeverfoodApp(
       themeModeController: controller,
-      promoRepository: promos ?? _fakePromos(),
+      apiClient: ApiClient(client: server.client, baseUrl: 'https://test'),
+      tokenStore: MemoryTokenStore(signedIn ? 'token' : null),
     ),
   );
+  return server;
+}
+
+/// The client account as `/api/v1/me` returns it.
+Map<String, Object?> _accountJson({
+  String status = 'approved',
+  bool isTest = false,
+  bool phoneVerified = true,
+}) => {
+  'id': 1,
+  'status': status,
+  'can_order': status == 'approved',
+  'is_test': isTest,
+  'erp_client_id': status == 'approved' ? 40217 : null,
+  'review_note': null,
+  'phone': phoneVerified ? '+393334821756' : null,
+  'phone_verified': phoneVerified,
+  'email': null,
+  'email_verified': false,
+  'profile_editable': const [
+    'registered',
+    'pending',
+    'rejected',
+  ].contains(status),
+  'profile': {
+    'first_name': status == 'registered' ? null : 'Marco',
+    'last_name': status == 'registered' ? null : 'Ferrero',
+    'company_name': status == 'registered' ? null : 'Bar Aurora snc',
+    'vat_number': status == 'registered' ? null : '01234567897',
+  },
+  'address': null,
+};
+
+/// beverfood_web's /api/v1, faked: one account ([account]), the promos (the
+/// first [promoFailures] requests fail), the sign-in code `123456`, two
+/// comuni and one Torino street. Records the profile sent.
+class _FakeServer {
+  _FakeServer({Map<String, Object?>? account, this.promoFailures = 0})
+    : account = account ?? _accountJson();
+
+  Map<String, Object?> account;
+  int promoFailures;
+  Map<String, Object?>? sentProfile;
+
+  late final client = MockClient((request) async {
+    final path = request.url.path;
+    final body = request.body.isEmpty
+        ? const <String, Object?>{}
+        : jsonDecode(request.body) as Map<String, Object?>;
+    final signedIn = request.headers['Authorization'] == 'Bearer token';
+
+    if (path == '/api/v1/auth/code') {
+      return _json({
+        'destination': '+39${(body['phone'] as String).replaceAll(' ', '')}',
+        'channel': body['channel'],
+        'expires_in': 600,
+        'resend_in': 45,
+      });
+    }
+    if (path == '/api/v1/auth/verify') {
+      if (body['code'] != '123456') {
+        return _json({
+          'error': 'Codice non corretto.',
+          'code': 'wrong_code',
+          'field': 'code',
+        }, 400);
+      }
+      return _json({'token': 'token', 'client': account});
+    }
+    if (!signedIn) {
+      return _json({'error': 'Accedi di nuovo.', 'code': 'unauthorized'}, 401);
+    }
+    switch ((request.method, path)) {
+      case ('GET', '/api/v1/me'):
+        return _json({'client': account});
+      case ('GET', '/api/v1/promos'):
+        if (promoFailures-- > 0) return http.Response('', 503);
+        return _json(_promosJson);
+      case ('POST', '/api/v1/auth/logout'):
+        return http.Response('', 204);
+      case ('DELETE', '/api/v1/me'):
+        return account['is_test'] == true
+            ? _json({
+                'error': "L'account di prova non si può eliminare.",
+                'code': 'test_account',
+              }, 403)
+            : http.Response('', 204);
+      case ('GET', '/api/v1/places/comuni'):
+        return _json({
+          'comuni': [
+            {
+              'istat': '001156',
+              'name': 'Moncalieri',
+              'caps': ['10024'],
+            },
+            {
+              'istat': '001272',
+              'name': 'Torino',
+              'caps': ['10121', '10122', '10123'],
+            },
+          ],
+        });
+      case ('GET', '/api/v1/places/streets'):
+        return _json({
+          'streets': [
+            {
+              'name': 'Via Roma',
+              'caps': ['10121'],
+            },
+          ],
+        });
+      case ('PUT', '/api/v1/me/profile'):
+        sentProfile = body;
+        account = {..._accountJson(status: 'pending')};
+        return _json({'client': account});
+    }
+    return _json({'error': 'Non trovato', 'code': 'not_found'}, 404);
+  });
+
+  static http.Response _json(Object body, [int status = 200]) =>
+      http.Response.bytes(utf8.encode(jsonEncode(body)), status);
 }
 
 /// A promo picked freely (2 paid + 1 free among two waters), one with fixed
@@ -109,16 +236,14 @@ const _waters = [
   },
 ];
 
-/// Promos served by a fake HTTP client, which fails the first [failures]
-/// requests.
-PromoRepository _fakePromos({int failures = 0}) {
-  var calls = 0;
-  final client = MockClient((request) async {
-    expect(request.url.path, '/api/v1/promos');
-    if (++calls <= failures) return http.Response('', 503);
-    return http.Response.bytes(utf8.encode(jsonEncode(_promosJson)), 200);
-  });
-  return PromoRepository(ApiClient(client: client, baseUrl: 'https://test'));
+/// Scrolls Profilo until [finder] is clear of the navigation bar.
+Future<void> _scrollProfileTo(WidgetTester tester, Finder finder) async {
+  final list = find
+      .descendant(of: find.byType(ListView), matching: find.byType(Scrollable))
+      .first;
+  await tester.scrollUntilVisible(finder, 120, scrollable: list);
+  await tester.drag(list, const Offset(0, -120));
+  await tester.pumpAndSettle();
 }
 
 /// The vertical scrollable of the page currently on screen.
@@ -164,7 +289,7 @@ void main() {
     await _pumpApp(
       tester,
       await _themeModeController(),
-      promos: _fakePromos(failures: 1),
+      server: _FakeServer(promoFailures: 1),
     );
     await tester.pumpAndSettle();
 
@@ -351,6 +476,7 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.person_outline_rounded));
     await tester.pumpAndSettle();
+    await _scrollProfileTo(tester, find.text('Modalità scura'));
 
     Brightness brightness() =>
         Theme.of(tester.element(find.text('Modalità scura'))).brightness;
@@ -395,6 +521,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.person_outline_rounded));
     await tester.pumpAndSettle();
+    await _scrollProfileTo(tester, find.text('Modalità scura'));
 
     var cardBuilds = 0;
     debugOnRebuildDirtyWidget = (element, _) {
@@ -417,5 +544,187 @@ void main() {
       find.descendant(of: card, matching: find.byType(Material)).first,
     );
     expect(cardMaterial.color, AppPalette.dark.surface);
+  });
+
+  testWidgets('signed out, the app signs in with a code sent to the phone', (
+    tester,
+  ) async {
+    await _pumpApp(
+      tester,
+      await _themeModeController(),
+      server: _FakeServer(account: _accountJson(status: 'registered')),
+      signedIn: false,
+    );
+    await tester.pumpAndSettle();
+
+    // Nothing but the welcome screen without an account.
+    expect(find.text('Benvenuto su Beverfood'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+
+    await tester.tap(find.text('Continua con il telefono'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '333 482 1756');
+    await tester.pump();
+    await tester.tap(find.text('Ricevi il codice'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Inserisci il codice'), findsOneWidget);
+    expect(find.textContaining('+39 333 482 1756'), findsOneWidget);
+    // Six digits verify by themselves.
+    await tester.enterText(find.byType(TextField), '000000');
+    await tester.pumpAndSettle();
+    expect(find.text('Codice non corretto.'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '123456');
+    await tester.pumpAndSettle();
+
+    // Signed up: Home, with the red notice until the profile is sent.
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.text('Completa il profilo per ordinare'), findsOneWidget);
+  });
+
+  testWidgets('the profile is completed in three steps and sent for approval', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final server = await _pumpApp(
+      tester,
+      await _themeModeController(),
+      server: _FakeServer(account: _accountJson(status: 'registered')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Completa ora'));
+    await tester.pumpAndSettle();
+
+    // 1 · Chi sei: the phone used to sign up is already verified.
+    expect(find.text('Verificato'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).at(0), 'Marco');
+    await tester.enterText(find.byType(TextField).at(1), 'Ferrero');
+    await tester.pump();
+    await tester.tap(find.text('Avanti'));
+    await tester.pumpAndSettle();
+
+    // 2 · Azienda: a wrong check digit is caught before sending.
+    await tester.enterText(find.byType(TextField).at(0), 'Bar Aurora snc');
+    await tester.enterText(find.byType(TextField).at(1), '01234567890');
+    await tester.pump();
+    await tester.tap(find.text('Avanti'));
+    await tester.pump();
+    expect(
+      find.text('Controlla la Partita IVA: una cifra non torna.'),
+      findsOneWidget,
+    );
+    await tester.enterText(find.byType(TextField).at(1), '01234567897');
+    await tester.pump();
+    await tester.tap(find.text('Avanti'));
+    await tester.pumpAndSettle();
+
+    // 3 · Consegna: comune from the list, street searched, CAP filled in.
+    await tester.tap(find.text('Scegli il comune'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'tor');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Torino'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(0), 'roma');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Via Roma'));
+    await tester.pumpAndSettle();
+    expect(find.text('10121'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).at(1), '1');
+    await tester.pump();
+    await tester.tap(find.text("Invia per l'approvazione"));
+    await tester.pumpAndSettle();
+
+    expect(server.sentProfile, {
+      'first_name': 'Marco',
+      'last_name': 'Ferrero',
+      'company_name': 'Bar Aurora snc',
+      'vat_number': '01234567897',
+      'address': {
+        'comune_istat': '001272',
+        'street': 'Via Roma',
+        'street_unlisted': false,
+        'civic': '1',
+        'cap': '10121',
+        'notes': null,
+      },
+    });
+    // Back on Home: now waiting for Beverfood.
+    expect(find.text('Profilo in verifica'), findsOneWidget);
+  });
+
+  testWidgets(
+    'a pending account sees why it cannot order, on Home and in the cart',
+    (tester) async {
+      await _pumpApp(
+        tester,
+        await _themeModeController(),
+        server: _FakeServer(account: _accountJson(status: 'pending')),
+      );
+      await tester.pumpAndSettle();
+
+      const why = 'Potrai inviare ordini una volta verificati i tuoi dati.';
+      expect(find.text(why), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.shopping_cart_outlined).last);
+      await tester.pumpAndSettle();
+      expect(find.text(why), findsOneWidget);
+    },
+  );
+
+  testWidgets('the test account cannot be deleted; Esci signs out', (
+    tester,
+  ) async {
+    await _pumpApp(
+      tester,
+      await _themeModeController(),
+      server: _FakeServer(account: _accountJson(isTest: true)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Completa il profilo'), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.person_outline_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('ACCOUNT DI PROVA'), findsNothing);
+    expect(find.text('APPROVATO'), findsOneWidget);
+    expect(find.textContaining('Cliente 40217'), findsOneWidget);
+
+    await _scrollProfileTo(tester, find.text('Elimina account'));
+    await tester.tap(find.text('Elimina account'));
+    await tester.pumpAndSettle();
+    // Disabled: no confirmation opens.
+    expect(find.text("Eliminare l'account?"), findsNothing);
+
+    await tester.tap(find.text('Esci'));
+    await tester.pumpAndSettle();
+    expect(find.text('Benvenuto su Beverfood'), findsOneWidget);
+  });
+
+  testWidgets('a quantity in a promo is picked by tapping its number', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpApp(tester, await _themeModeController());
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('Acqua Lilia, 2+1, Naturale o gas'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.bySemanticsLabel('Quantità Lilia Naturale: 0. Tocca per scegliere'),
+    );
+    await tester.pumpAndSettle();
+    // A wheel with every quantity the paid group has room for: 0, 1, 2.
+    expect(find.text('Puoi sceglierne fino a 2.'), findsOneWidget);
+    await tester.drag(find.byType(CupertinoPicker), const Offset(0, -88));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Conferma'));
+    await tester.pumpAndSettle();
+
+    // Both paid packs chosen in one tap; the free one is next.
+    expect(find.text('2 / 2'), findsOneWidget);
+    expect(find.text('Scegli ancora 1 in omaggio'), findsOneWidget);
   });
 }

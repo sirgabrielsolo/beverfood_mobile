@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,11 +7,13 @@ import 'package:beverfood_mobile/app/router.dart';
 import 'package:beverfood_mobile/app/theme/app_colors.dart';
 import 'package:beverfood_mobile/app/theme/app_palette.dart';
 import 'package:beverfood_mobile/app/theme/app_radii.dart';
+import 'package:beverfood_mobile/app/theme/app_theme.dart';
 import 'package:beverfood_mobile/core/formatting/price_format.dart';
 import 'package:beverfood_mobile/core/formatting/product_name.dart';
 import 'package:beverfood_mobile/core/widgets/app_network_image.dart';
 import 'package:beverfood_mobile/core/widgets/empty_state.dart';
 import 'package:beverfood_mobile/core/widgets/net_price_text.dart';
+import 'package:beverfood_mobile/features/auth/presentation/widgets/auth_widgets.dart';
 import 'package:beverfood_mobile/features/cart/data/cart_controller.dart';
 import 'package:beverfood_mobile/features/promotions/data/promo_repository.dart';
 import 'package:beverfood_mobile/features/promotions/models/promo.dart';
@@ -286,6 +289,12 @@ class _GroupCard extends StatelessWidget {
                     ? _MixStepper(
                         count: selection.countOf(group, product.id),
                         canAdd: !complete,
+                        max:
+                            selection.countOf(group, product.id) +
+                            selection.remaining(group),
+                        onSet: (value) => onUpdate(
+                          (s) => s.withCount(group, product.id, value),
+                        ),
                         label:
                             splitProductName(product.name).name +
                             (g.role == PromoRole.free ? ' in omaggio' : ''),
@@ -437,10 +446,19 @@ class _MixStepper extends StatelessWidget {
     required this.canAdd,
     required this.label,
     required this.onStep,
+    required this.max,
+    required this.onSet,
   });
 
   final int count;
   final bool canAdd;
+
+  /// The most this product can have: its count plus what the group still
+  /// has room for.
+  final int max;
+
+  /// Sets the count directly, from the quantity picker.
+  final ValueChanged<int> onSet;
 
   /// The product, for the buttons' semantics ("Aggiungi Lilia Naturale").
   final String label;
@@ -463,15 +481,33 @@ class _MixStepper extends StatelessWidget {
               semanticLabel: 'Togli $label',
               onTap: count > 0 ? () => onStep(-1) : null,
             ),
-            SizedBox(
-              width: 24,
-              child: Text(
-                '$count',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.onBrand,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 15,
+            // Tapping the number picks the quantity in one go.
+            Semantics(
+              label: 'Quantità $label: $count. Tocca per scegliere',
+              button: true,
+              excludeSemantics: true,
+              child: InkWell(
+                onTap: () async {
+                  final value = await _pickQuantity(context, label, count, max);
+                  if (value != null && value != count) onSet(value);
+                },
+                borderRadius: AppRadii.button,
+                child: SizedBox(
+                  width: 32,
+                  height: 34,
+                  child: Center(
+                    child: Text(
+                      '$count',
+                      style: const TextStyle(
+                        color: AppColors.onBrand,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                        decoration: TextDecoration.underline,
+                        decorationColor: AppColors.onBrand,
+                        decorationStyle: TextDecorationStyle.dotted,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -479,6 +515,119 @@ class _MixStepper extends StatelessWidget {
               icon: Icons.add_rounded,
               semanticLabel: 'Aggiungi $label',
               onTap: canAdd ? () => onStep(1) : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A scroll wheel (as on iPhone) with every quantity from 0 to [max],
+/// starting on [current]; "Conferma" picks the one in the middle.
+Future<int?> _pickQuantity(
+  BuildContext context,
+  String label,
+  int current,
+  int max,
+) {
+  return showModalBottomSheet<int>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) =>
+        _QuantitySheet(label: label, current: current, max: max),
+  );
+}
+
+class _QuantitySheet extends StatefulWidget {
+  const _QuantitySheet({
+    required this.label,
+    required this.current,
+    required this.max,
+  });
+
+  final String label;
+  final int current;
+  final int max;
+
+  @override
+  State<_QuantitySheet> createState() => _QuantitySheetState();
+}
+
+class _QuantitySheetState extends State<_QuantitySheet> {
+  static const _itemExtent = 44.0;
+
+  late int _value = widget.current.clamp(0, widget.max);
+  late final _wheel = FixedExtentScrollController(initialItem: _value);
+
+  @override
+  void dispose() {
+    _wheel.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final max = widget.max;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.label,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              max == 1 ? 'Puoi sceglierne 1.' : 'Puoi sceglierne fino a $max.',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: palette.textSecondary,
+              ),
+            ),
+            SizedBox(
+              height: _itemExtent * 5,
+              child: CupertinoPicker(
+                scrollController: _wheel,
+                itemExtent: _itemExtent,
+                looping: false,
+                // The chosen number is slightly larger; the band is drawn over
+                // it, so it stays light.
+                useMagnifier: true,
+                magnification: 1.15,
+                selectionOverlay: CupertinoPickerDefaultSelectionOverlay(
+                  background: palette.line.withValues(alpha: 0.3),
+                ),
+                onSelectedItemChanged: (index) =>
+                    setState(() => _value = index),
+                children: [
+                  for (var n = 0; n <= max; n++)
+                    Center(
+                      child: Text(
+                        '$n',
+                        // The wheel's default is Apple's system font, which
+                        // isn't on Android: keep the app's.
+                        style: TextStyle(
+                          fontFamily: AppTheme.fontFamily,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: palette.textPrimary,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            WideButton(
+              label: 'Conferma',
+              onPressed: () => Navigator.of(context).pop(_value),
             ),
           ],
         ),

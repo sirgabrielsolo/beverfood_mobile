@@ -5,6 +5,9 @@ import 'package:beverfood_mobile/app/router.dart';
 import 'package:beverfood_mobile/app/theme/app_theme.dart';
 import 'package:beverfood_mobile/app/theme/theme_mode_controller.dart';
 import 'package:beverfood_mobile/core/network/api_client.dart';
+import 'package:beverfood_mobile/features/auth/data/auth_controller.dart';
+import 'package:beverfood_mobile/features/auth/data/auth_repository.dart';
+import 'package:beverfood_mobile/features/auth/data/token_store.dart';
 import 'package:beverfood_mobile/features/cart/data/cart_controller.dart';
 import 'package:beverfood_mobile/features/products/data/favourites_controller.dart';
 import 'package:beverfood_mobile/features/promotions/data/promo_repository.dart';
@@ -13,28 +16,65 @@ class BeverfoodApp extends StatefulWidget {
   const BeverfoodApp({
     super.key,
     required this.themeModeController,
-    this.promoRepository,
+    this.apiClient,
+    this.tokenStore,
   });
 
   final ThemeModeController themeModeController;
 
-  /// Defaults to the production API (see [ApiClient]); tests pass a fake.
-  final PromoRepository? promoRepository;
+  /// Defaults to the production API (see [ApiClient]); tests pass one with a
+  /// fake HTTP client.
+  final ApiClient? apiClient;
+
+  /// Defaults to the device's secure storage; tests keep the token in memory.
+  final TokenStore? tokenStore;
 
   @override
   State<BeverfoodApp> createState() => _BeverfoodAppState();
 }
 
-class _BeverfoodAppState extends State<BeverfoodApp> {
+class _BeverfoodAppState extends State<BeverfoodApp>
+    with WidgetsBindingObserver {
   // Owned by the widget so each app instance (e.g. in tests) gets fresh
-  // navigation, cart and favourites state.
-  late final GoRouter _router = createRouter();
+  // navigation, account, cart and favourites state.
+  late final ApiClient _api = widget.apiClient ?? ApiClient();
+  late final AuthController _auth = AuthController(
+    api: _api,
+    repository: AuthRepository(_api),
+    tokenStore: widget.tokenStore ?? const SecureTokenStore(),
+  );
+  late final GoRouter _router = createRouter(_auth);
   final _cart = CartController();
   final _favourites = FavouritesController();
-  late final _promos = widget.promoRepository ?? PromoRepository(ApiClient());
+  late final _promos = PromoRepository(_api);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _auth.addListener(_onAuthChanged);
+    _auth.start();
+  }
+
+  void _onAuthChanged() {
+    // Another account may sign in next: it starts with an empty cart.
+    if (_auth.status == AuthStatus.signedOut) _cart.clear();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Back in the foreground: pick up an approval (or a suspension).
+    if (state == AppLifecycleState.resumed &&
+        _auth.status == AuthStatus.signedIn) {
+      _auth.refresh();
+    }
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _auth.removeListener(_onAuthChanged);
+    _auth.dispose();
     _router.dispose();
     _cart.dispose();
     _favourites.dispose();
@@ -45,29 +85,32 @@ class _BeverfoodAppState extends State<BeverfoodApp> {
   Widget build(BuildContext context) {
     return ThemeModeScope(
       controller: widget.themeModeController,
-      child: CartScope(
-        controller: _cart,
-        child: FavouritesScope(
-          controller: _favourites,
-          child: PromoRepositoryScope(
-            repository: _promos,
-            child: MaterialApp.router(
-              title: 'Beverfood',
-              debugShowCheckedModeBanner: false,
-              theme: AppTheme.light,
-              routerConfig: _router,
-              // The theme is applied here, around the router, rather than with
-              // `themeMode`: changing that rebuilds the MaterialApp and with it
-              // the router and every page. Here the router is the same child,
-              // so only the widgets that read the theme rebuild. It also
-              // switches instantly; the default 200 ms interpolation rebuilds
-              // them on every frame, which janks on a real device.
-              builder: (context, router) => ListenableBuilder(
-                listenable: widget.themeModeController,
-                child: router,
-                builder: (context, router) => Theme(
-                  data: _isDark(context) ? AppTheme.dark : AppTheme.light,
-                  child: router!,
+      child: AuthScope(
+        controller: _auth,
+        child: CartScope(
+          controller: _cart,
+          child: FavouritesScope(
+            controller: _favourites,
+            child: PromoRepositoryScope(
+              repository: _promos,
+              child: MaterialApp.router(
+                title: 'Beverfood',
+                debugShowCheckedModeBanner: false,
+                theme: AppTheme.light,
+                routerConfig: _router,
+                // The theme is applied here, around the router, rather than with
+                // `themeMode`: changing that rebuilds the MaterialApp and with it
+                // the router and every page. Here the router is the same child,
+                // so only the widgets that read the theme rebuild. It also
+                // switches instantly; the default 200 ms interpolation rebuilds
+                // them on every frame, which janks on a real device.
+                builder: (context, router) => ListenableBuilder(
+                  listenable: widget.themeModeController,
+                  child: router,
+                  builder: (context, router) => Theme(
+                    data: _isDark(context) ? AppTheme.dark : AppTheme.light,
+                    child: router!,
+                  ),
                 ),
               ),
             ),

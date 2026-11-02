@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:beverfood_mobile/app/router.dart';
+import 'package:beverfood_mobile/features/auth/presentation/widgets/account_notice.dart';
 import 'package:beverfood_mobile/features/home/presentation/widgets/category_tiles.dart';
 import 'package:beverfood_mobile/features/home/presentation/widgets/home_header.dart';
 import 'package:beverfood_mobile/features/home/presentation/widgets/product_rail.dart';
@@ -22,6 +23,10 @@ class HomePage extends StatelessWidget {
       body: CustomScrollView(
         slivers: [
           const HomeHeader(),
+          // Why the client can't order yet (D1); nothing once approved.
+          const SliverToBoxAdapter(
+            child: AccountNotice(padding: EdgeInsets.fromLTRB(16, 16, 16, 0)),
+          ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.only(top: 20),

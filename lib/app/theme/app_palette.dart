@@ -10,6 +10,10 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.surface,
     required this.imagePlaceholder,
     required this.cutoutBackground,
+    required this.warning,
+    required this.onWarning,
+    required this.success,
+    required this.onSuccess,
     required this.textPrimary,
     required this.textSecondary,
     required this.line,
@@ -30,6 +34,10 @@ class AppPalette extends ThemeExtension<AppPalette> {
     surface: Colors.white,
     imagePlaceholder: Color(0xFFF4F2F1),
     cutoutBackground: Color(0xFFF4F2F1),
+    warning: Color(0xFFFFF1CC),
+    onWarning: Color(0xFF6B4B00),
+    success: Color(0xFFE3F3E9),
+    onSuccess: Color(0xFF1E7A46),
     textPrimary: Color(0xFF1A1718),
     textSecondary: Color(0xFF6A6266),
     line: Color(0xFFE8E3E1),
@@ -50,6 +58,10 @@ class AppPalette extends ThemeExtension<AppPalette> {
     surface: Color(0xFF1F1B1D),
     imagePlaceholder: Color(0xFF121011),
     cutoutBackground: Color(0xFFE6E1E2),
+    warning: Color(0xFF3A2F12),
+    onWarning: Color(0xFFF5D88A),
+    success: Color(0xFF173523),
+    onSuccess: Color(0xFF6FD49A),
     textPrimary: Color(0xFFF7F2F3),
     textSecondary: Color(0xFFABA1A5),
     line: Color(0xFF2D282A),
@@ -76,6 +88,14 @@ class AppPalette extends ThemeExtension<AppPalette> {
   /// Behind product cut-outs (transparent PNGs from Cloudinary). Light in
   /// both themes: dark bottles would disappear on a dark surface.
   final Color cutoutBackground;
+
+  /// Yellow notice (e.g. "Profilo in verifica") and its text.
+  final Color warning;
+  final Color onWarning;
+
+  /// Green chip (e.g. "Verificato") and its text.
+  final Color success;
+  final Color onSuccess;
   final Color textPrimary;
 
   /// Secondary text, inactive icons and tabs, search hint.
@@ -121,6 +141,10 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? surface,
     Color? imagePlaceholder,
     Color? cutoutBackground,
+    Color? warning,
+    Color? onWarning,
+    Color? success,
+    Color? onSuccess,
     Color? textPrimary,
     Color? textSecondary,
     Color? line,
@@ -140,6 +164,10 @@ class AppPalette extends ThemeExtension<AppPalette> {
       surface: surface ?? this.surface,
       imagePlaceholder: imagePlaceholder ?? this.imagePlaceholder,
       cutoutBackground: cutoutBackground ?? this.cutoutBackground,
+      warning: warning ?? this.warning,
+      onWarning: onWarning ?? this.onWarning,
+      success: success ?? this.success,
+      onSuccess: onSuccess ?? this.onSuccess,
       textPrimary: textPrimary ?? this.textPrimary,
       textSecondary: textSecondary ?? this.textSecondary,
       line: line ?? this.line,
@@ -172,6 +200,10 @@ class AppPalette extends ThemeExtension<AppPalette> {
         other.cutoutBackground,
         t,
       )!,
+      warning: Color.lerp(warning, other.warning, t)!,
+      onWarning: Color.lerp(onWarning, other.onWarning, t)!,
+      success: Color.lerp(success, other.success, t)!,
+      onSuccess: Color.lerp(onSuccess, other.onSuccess, t)!,
       textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
       line: Color.lerp(line, other.line, t)!,
