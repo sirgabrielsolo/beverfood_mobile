@@ -1,54 +1,90 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 
 import 'package:beverfood_mobile/app/theme/app_palette.dart';
 import 'package:beverfood_mobile/app/theme/app_radii.dart';
 import 'package:beverfood_mobile/features/products/data/catalog_repository.dart';
 import 'package:beverfood_mobile/features/products/models/category.dart';
 
-/// Home's "Categorie": every category with products (Novità and Promozioni
-/// first), four per row, each a photo bundled with the app and its name on
-/// up to two lines. Returns a sliver. Grey tiles while the catalogue loads;
-/// nothing if it failed (the rails above offer the retry).
+/// Home's "Categorie" (H2): the catalogue's categories in two rows that
+/// scroll sideways together, read top to bottom then left to right, each a
+/// photo bundled with the app and its name on up to two lines. Novità and
+/// Promozioni are left out: Home has their sections already (they stay tabs
+/// in Prodotti). Grey tiles while the catalogue loads; nothing if it failed
+/// (the rails above offer the retry).
 class CategoryGrid extends StatelessWidget {
   const CategoryGrid({super.key, required this.onSelected});
 
   final ValueChanged<Category> onSelected;
 
-  static const _columns = 4;
-  static const _placeholders = 8;
+  static const tileWidth = 84.0;
+  // Small: a one-line name already leaves its second line empty.
+  static const _rowGap = 6.0;
+  static const _columnGap = 12.0;
   static const _labelGap = 6.0;
+  static const _placeholderColumns = 5;
   static const labelStyle = TextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w800,
     height: 1.25,
   );
 
+  /// One tile: the square photo, the gap and two lines of name.
+  static double tileHeight(BuildContext context) =>
+      tileWidth +
+      _labelGap +
+      MediaQuery.textScalerOf(context).scale(labelStyle.fontSize!) *
+          labelStyle.height! *
+          2;
+
   @override
   Widget build(BuildContext context) {
     final controller = CatalogScope.of(context);
-    final categories = controller.catalog?.categories;
+    final categories = controller.catalog?.categories
+        .where((c) => !c.isNew && !c.isPromo)
+        .toList();
     if (categories == null && controller.status == CatalogStatus.failed) {
-      return const SliverToBoxAdapter(child: SizedBox.shrink());
+      return const SizedBox.shrink();
+    }
+    if (categories != null && categories.isEmpty) {
+      return const SizedBox.shrink();
     }
 
-    final labelHeight =
-        MediaQuery.textScalerOf(context).scale(labelStyle.fontSize!) *
-        labelStyle.height! *
-        2;
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      sliver: SliverGrid.builder(
-        gridDelegate: _CategoryGridDelegate(
-          textHeight: _labelGap + labelHeight,
+    final tileHeight = CategoryGrid.tileHeight(context);
+    // Ceil: two lines may round 1 px taller than their nominal height.
+    final height = (tileHeight * 2 + _rowGap).ceilToDouble() + 2;
+    final columns = categories == null
+        ? _placeholderColumns
+        : (categories.length + 1) ~/ 2;
+
+    Widget tile(int index) {
+      if (categories == null) return const _TileImage(child: null);
+      if (index >= categories.length) return const SizedBox.shrink();
+      final category = categories[index];
+      return _CategoryTile(
+        category: category,
+        onTap: () => onSelected(category),
+      );
+    }
+
+    return SizedBox(
+      height: height,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        // Spans the full screen width, so there's nothing to clip.
+        clipBehavior: Clip.none,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: columns,
+        separatorBuilder: (context, index) => const SizedBox(width: _columnGap),
+        itemBuilder: (context, column) => SizedBox(
+          width: tileWidth,
+          child: Column(
+            children: [
+              SizedBox(height: tileHeight, child: tile(column * 2)),
+              const SizedBox(height: _rowGap),
+              SizedBox(height: tileHeight, child: tile(column * 2 + 1)),
+            ],
+          ),
         ),
-        itemCount: categories?.length ?? _placeholders,
-        itemBuilder: (context, index) => categories == null
-            ? const _TileImage(child: null)
-            : _CategoryTile(
-                category: categories[index],
-                onTap: () => onSelected(categories[index]),
-              ),
       ),
     );
   }
@@ -66,7 +102,9 @@ class _CategoryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: '${category.name}, ${category.count} prodotti',
+      label:
+          '${category.name}, ${category.count} '
+          '${category.count == 1 ? 'prodotto' : 'prodotti'}',
       excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -147,37 +185,4 @@ class _CategoryImage extends StatelessWidget {
       ),
     );
   }
-}
-
-/// [CategoryGrid._columns] columns of tiles as tall as their square photo
-/// plus [textHeight], sized at layout time (see `ProductSliverGrid` for why
-/// not a `SliverLayoutBuilder`).
-class _CategoryGridDelegate extends SliverGridDelegate {
-  const _CategoryGridDelegate({required this.textHeight});
-
-  final double textHeight;
-
-  static const _crossAxisSpacing = 10.0;
-  static const _mainAxisSpacing = 14.0;
-
-  @override
-  SliverGridLayout getLayout(SliverConstraints constraints) {
-    const columns = CategoryGrid._columns;
-    final tileWidth =
-        (constraints.crossAxisExtent - _crossAxisSpacing * (columns - 1)) /
-        columns;
-    final tileHeight = tileWidth + textHeight;
-    return SliverGridRegularTileLayout(
-      crossAxisCount: columns,
-      mainAxisStride: tileHeight + _mainAxisSpacing,
-      crossAxisStride: tileWidth + _crossAxisSpacing,
-      childMainAxisExtent: tileHeight,
-      childCrossAxisExtent: tileWidth,
-      reverseCrossAxis: axisDirectionIsReversed(constraints.crossAxisDirection),
-    );
-  }
-
-  @override
-  bool shouldRelayout(_CategoryGridDelegate oldDelegate) =>
-      textHeight != oldDelegate.textHeight;
 }

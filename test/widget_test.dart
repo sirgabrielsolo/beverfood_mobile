@@ -452,44 +452,49 @@ void main() {
     expect(find.byType(NavigationBar), findsOneWidget);
   });
 
-  testWidgets('Home shows every category, Novità and Promozioni first', (
-    tester,
-  ) async {
-    await _pumpApp(tester, await _themeModeController());
-    await tester.pumpAndSettle();
-    // The last tile; the grid's two rows are then all on screen.
-    await tester.scrollUntilVisible(
-      find.bySemanticsLabel('Vini e spumanti, 1 prodotti'),
-      300,
-      scrollable: _pageScrollable(),
-    );
+  testWidgets(
+    'Home shows the categories in two rows, without Novità and Promo',
+    (tester) async {
+      await _pumpApp(tester, await _themeModeController());
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.bySemanticsLabel('Acqua, 1 prodotto'),
+        300,
+        scrollable: _pageScrollable(),
+      );
 
-    final labels = [
-      for (final element
-          in find
-              .descendant(
-                of: find.byType(CategoryGrid),
-                matching: find.byType(Text),
-              )
-              .evaluate())
-        (element.widget as Text).data,
-    ];
-    expect(labels, [
-      'Novità',
-      'Promozioni',
-      'Acqua',
-      'Bibite',
-      'Birre',
-      'Gin',
-      'Vini e spumanti',
-    ]);
-  });
+      // Read down each column, then across: Acqua over Bibite, Birre over Gin…
+      final labels = [
+        for (final element
+            in find
+                .descendant(
+                  of: find.byType(CategoryGrid),
+                  matching: find.byType(Text),
+                )
+                .evaluate())
+          (element.widget as Text).data,
+      ];
+      expect(labels, ['Acqua', 'Bibite', 'Birre', 'Gin', 'Vini e spumanti']);
+      double top(String label) =>
+          tester.getTopLeft(find.bySemanticsLabel(RegExp('^$label, '))).dy;
+      expect(top('Bibite'), greaterThan(top('Acqua')));
+      expect(top('Birre'), top('Acqua'));
+
+      // Novità and Promozioni stay tabs in Prodotti.
+      await tester.tap(find.byIcon(Icons.grid_view_outlined));
+      await tester.pumpAndSettle();
+      Finder inProdotti(Finder finder) =>
+          find.descendant(of: find.byType(ProductsPage), matching: finder);
+      expect(inProdotti(find.text('Novità')), findsOneWidget);
+      expect(inProdotti(find.text('Promozioni')), findsOneWidget);
+    },
+  );
 
   testWidgets('a category tile opens Prodotti on that tab', (tester) async {
     await _pumpApp(tester, await _themeModeController());
     await tester.pumpAndSettle();
 
-    final tile = find.bySemanticsLabel('Birre, 1 prodotti');
+    final tile = find.bySemanticsLabel('Birre, 1 prodotto');
     await tester.scrollUntilVisible(tile, 300, scrollable: _pageScrollable());
     // Bring the tile out from behind the navigation bar.
     await tester.drag(_pageScrollable(), const Offset(0, -150));
@@ -827,10 +832,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(cardBuilds, greaterThan(0));
     final card = find.byType(ProductCard).first;
-    final cardMaterial = tester.widget<Material>(
-      find.descendant(of: card, matching: find.byType(Material)).first,
+    final cardBox = tester.widget<DecoratedBox>(
+      find.descendant(of: card, matching: find.byType(DecoratedBox)).first,
     );
-    expect(cardMaterial.color, AppPalette.dark.surface);
+    expect(
+      (cardBox.decoration as BoxDecoration).color,
+      AppPalette.dark.surface,
+    );
   });
 
   testWidgets('signed out, the app signs in with a code sent to the phone', (
@@ -1015,7 +1023,7 @@ void main() {
     expect(find.text('Scegli ancora 1 in omaggio'), findsOneWidget);
   });
 
-  testWidgets('with nothing new, Novità is neither a rail nor a category', (
+  testWidgets('with nothing new, Novità is neither a rail nor a tab', (
     tester,
   ) async {
     await _pumpApp(
@@ -1025,12 +1033,22 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.bySemanticsLabel('Acqua, 1 prodotti'),
+      find.bySemanticsLabel('Acqua, 1 prodotto'),
       300,
       scrollable: _pageScrollable(),
     );
     expect(find.text('Novità'), findsNothing);
-    expect(find.bySemanticsLabel('Promozioni, 3 prodotti'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.grid_view_outlined));
+    await tester.pumpAndSettle();
+    final tabs = find.descendant(
+      of: find.byType(ProductsPage),
+      matching: find.byType(Tab),
+    );
+    expect([for (final tab in tester.widgetList<Tab>(tabs)) tab.text].take(3), [
+      'Tutti',
+      'Promozioni',
+      'Acqua',
+    ]);
   });
 
   testWidgets('Novità come from the database, with readable names', (

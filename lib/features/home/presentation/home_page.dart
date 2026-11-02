@@ -71,9 +71,11 @@ class HomePage extends StatelessWidget {
             ),
           ),
           const SliverToBoxAdapter(child: SectionHeader(title: 'Categorie')),
-          CategoryGrid(
-            onSelected: (category) =>
-                _openProducts(context, categoryId: category.id),
+          SliverToBoxAdapter(
+            child: CategoryGrid(
+              onSelected: (category) =>
+                  _openProducts(context, categoryId: category.id),
+            ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],

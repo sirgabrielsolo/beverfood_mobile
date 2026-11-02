@@ -34,8 +34,22 @@ void main() {
       pack: '750 ml',
     ));
     expect(splitProductName("CAFFE' IN GRANI"), (
-      name: 'Caffè In Grani',
+      name: 'Caffè in Grani',
       pack: '',
     ));
+  });
+
+  test('small words stay lower case, wine designations in capitals', () {
+    expect(splitProductName('SUCCO DI LIMONE 1 LT').name, 'Succo di Limone');
+    expect(
+      splitProductName('ROSATO ISOLA DEI NURAGHI BOVALE IGT 750 ML').name,
+      'Rosato Isola dei Nuraghi Bovale IGT',
+    );
+    expect(
+      splitProductName('LANGHE ARNEIS PORTA REALE DOC 750 ML').name,
+      'Langhe Arneis Porta Reale DOC',
+    );
+    // A small word first is still capitalised.
+    expect(splitProductName('IL VINO 750 ML').name, 'Il Vino');
   });
 }

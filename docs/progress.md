@@ -12,17 +12,17 @@ as well, so they aren't proposed again.
 State at the end of 2026-11-02:
 - **Built and passing:**
   - **App:** sign-in (A1/B2), profile completion (C2), notices (D1/D2), Profilo (E), promos with banners and the
-    detail page, the "Vai al carrello" bar, and **the whole catalogue from the database**: Novità, Più popolari, every
-    category on Home (H3) and in Prodotti (P1 tabs, Promozioni tab), search and sort on the phone (L1).
-  - **beverfood_web:** the `/api/v1` API (now `/catalog`, gzipped), the admin panel (P2) with Clienti app
-    approvals, and the managers' two areas.
-  - **Tests:** 23 widget + 14 unit tests in the app; the web checks are scratch scripts (see beverfood_web's
+    detail page, the "Vai al carrello" bar, and the whole catalogue from the database: Novità, Più popolari, the
+    categories on Home (H2, two rows) and in Prodotti (P1 tabs, Promozioni tab), search and sort on the phone (L1).
+    Runs at 90 Hz on the CPH2399.
+  - **beverfood_web:** the `/api/v1` API (`/catalog`, gzipped), the admin panel (P2) with Clienti app approvals, and
+    the managers' two areas.
+  - **Tests:** 23 widget + 15 unit tests in the app; the web checks are scratch scripts (see beverfood_web's
     CLAUDE.md, "Checking changes").
-- **Not committed or deployed yet** (the user handles git): first run `git status` in both repos. The app needs
-  beverfood_web's `/catalog` deployed: against an older server Home and Prodotti show "… non disponibili".
-- **Not yet seen on a phone:** the catalogue was checked in widget tests and test-renderer screenshots (real category
-  photos, placeholders for products). Try it on the CPH2399 against the local server: scrolling Prodotti's 1222
-  products, Cloudinary thumbnails, the disk cache, pull-to-refresh.
+- **Not committed yet** (the user handles git): run `git status` first.
+- **On the user's phone** the app is the profile build from the last session, signed in as the test account against a
+  local scratch server that's now stopped: it shows "… non disponibili" until it's run again, and against production
+  it signs out (the token is the scratch server's). Sign in again with the test account.
 - **The user planned to set `OTP_SENDER=log` on Render** (codes in Render's logs, so co-workers can register on
   production until an SMS provider exists). Remove it before public launch.
 - **Next task:** Next up, step 3 (the cart page and orders). Product names still use the stopgap `splitProductName`.
@@ -542,4 +542,40 @@ In order. "(user)" marks what only the user can do.
 - `integration_test/scroll_performance_test.dart` builds the app with the device's saved token and the production
   API, so it measures the catalogue only when that device is signed in and production has `/catalog`; otherwise it
   stops at the welcome screen. Not run this session.
+
+### 2026-11-02 (categories H2 and the phone)
+
+**Decisions**
+- **Home's categories are H2** (two rows that scroll sideways together), replacing H3. **Novità and Promozioni are not
+  in Home's Categorie**: they have their own sections. They stay tabs in Prodotti.
+
+**Done**
+- `CategoryGrid` is now the two-row rail: columns of two 84 pt tiles, read down then across; 6 pt between the rows (a
+  one-line name already leaves a blank line). Tile labels say "1 prodotto" / "N prodotti" to screen readers.
+- **Tested on the user's phone** (CPH2399) against a local beverfood_web on a scratch copy of the local database
+  (the real tables untouched; the copy dropped afterwards):
+  - The integration test now signs in as the test account itself (`PERF_SIGN_IN_CODE`), waits for the real catalogue,
+    uses the disk cache like the app, and also times the category rail, long Prodotti flings over 1222 products, tab
+    switches and typing a search.
+  - **The app ran at 60 Hz** on the 90 Hz screen (ColorOS keeps apps at 60 unless they ask). `MainActivity` now asks
+    for the fastest display mode: 90 Hz confirmed.
+  - **Real flings** (`tool/fling_stats.sh`, adb touch events timed by SurfaceFlinger) at 90 Hz: Prodotti 0.1–0.3%
+    dropped frames, Home about 1%. Switching a Prodotti tab drops one frame.
+  - The synthetic test showed ~25 ms build spikes in Prodotti (one per row of cards entering). Traced, they come from
+    building and laying out a row of new cards, and they mostly vanish with real touches (touch boost). The test also
+    ran *faster* with the accessibility tree on, so its numbers depend on how busy the cores are; compare like with
+    like.
+- **Lighter product card:** a `DecoratedBox` instead of a `Material` for the card, and the cart bar builds only its
+  visible layer at rest. Measurably cheaper per card in traces, though the synthetic test's totals didn't move.
+- **Names:** Italian small words lower case after the first word ("Succo di Limone"), DOC/DOCG/IGT… in capitals.
+- **Tests:** 23 widget + 15 unit, all passing.
+
+**Mistake**
+- The first `flutter drive` run uninstalled the app from the user's phone when it finished (flutter drive does that
+  without `--keep-app-running`), which also deleted its saved sign-in. Every later run used `--keep-app-running`, and
+  CLAUDE.md's command now includes it.
+
+**Notes**
+- The theme switch still costs one frame of about 30–40 ms at the tap (as on 2026-11-01).
+- A locked or sleeping phone stalls `flutter drive` (no frames without a display); Developer options → Stay awake.
 

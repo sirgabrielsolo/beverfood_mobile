@@ -64,9 +64,13 @@ class ProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scaler = MediaQuery.textScalerOf(context);
 
-    return Material(
-      color: context.palette.surface,
-      borderRadius: AppRadii.card,
+    // A plain box, not a Material: the card has no ripple of its own, and a
+    // Material sets up implicit animations for every card scrolled in.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: context.palette.surface,
+        borderRadius: AppRadii.card,
+      ),
       child: Padding(
         padding: const EdgeInsets.all(_padding),
         child: Column(
@@ -234,6 +238,19 @@ class _CartBar extends StatelessWidget {
           duration: _duration,
           curve: const Cubic(0.2, 0.8, 0.2, 1),
           builder: (context, t, _) {
+            // At rest only the visible layer, without the sliding wrappers:
+            // cards are built as they scroll in, and this keeps them light.
+            if (t == 0) {
+              return _AddLabel(alpha: 1, onTap: () => cart.add(product));
+            }
+            if (t == 1) {
+              return _Stepper(
+                alpha: 1,
+                quantity: quantity,
+                onRemove: () => cart.removeOne(product),
+                onAdd: () => cart.add(product),
+              );
+            }
             final slide = t * ProductCard._cartBarHeight;
             final layers = Stack(
               fit: StackFit.expand,
@@ -263,9 +280,7 @@ class _CartBar extends StatelessWidget {
               ],
             );
 
-            // Clip only while sliding: at rest nothing sticks out, and a
-            // clip per card is costly while scrolling.
-            if (t == 0 || t == 1) return layers;
+            // Clipped while sliding, so the layers don't show outside the bar.
             return ClipRRect(borderRadius: AppRadii.button, child: layers);
           },
         ),

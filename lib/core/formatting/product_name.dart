@@ -22,7 +22,8 @@
   final name = text
       .split(RegExp(r'\s+'))
       .where((word) => word.isNotEmpty)
-      .map(_word)
+      .indexed
+      .map((w) => _word(w.$2, first: w.$1 == 0))
       .join(' ');
   return (name: name, pack: pack.join(' · '));
 }
@@ -53,10 +54,66 @@ const _containers = {
 
 const _accented = {'A': 'à', 'E': 'è', 'I': 'ì', 'O': 'ò', 'U': 'ù'};
 
-String _word(String word) {
+/// Italian articles and prepositions, lower case after the first word as
+/// shops write them: "Succo di limone", not "Succo Di Limone".
+const _smallWords = {
+  'A',
+  'AD',
+  'AI',
+  'AL',
+  'ALLA',
+  'ALLE',
+  'ALLO',
+  'AGLI',
+  'CON',
+  'DA',
+  'DAL',
+  'DALLA',
+  'DEGLI',
+  'DEI',
+  'DEL',
+  'DELLA',
+  'DELLE',
+  'DELLO',
+  'DI',
+  'E',
+  'ED',
+  'GLI',
+  'I',
+  'IL',
+  'IN',
+  'LA',
+  'LE',
+  'LO',
+  'NEL',
+  'NELLA',
+  'PER',
+  'SU',
+  'SUL',
+  'SULLA',
+  'TRA',
+  'FRA',
+};
+
+/// Wine designations and spirit grades, kept in capitals.
+const _acronyms = {
+  'DOC',
+  'DOCG',
+  'DOP',
+  'IGP',
+  'IGT',
+  'IPA',
+  'VS',
+  'VSOP',
+  'XO',
+};
+
+String _word(String word, {required bool first}) {
   final upper = word.toUpperCase();
   final container = _containers[upper];
   if (container != null) return container;
+  if (_acronyms.contains(upper)) return upper;
+  if (!first && _smallWords.contains(upper)) return word.toLowerCase();
   // The ERP writes a final accent as an apostrophe: CAFFE' → Caffè.
   if (upper.length > 1 && upper.endsWith("'")) {
     final vowel = _accented[upper[upper.length - 2]];
