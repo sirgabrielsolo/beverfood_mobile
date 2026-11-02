@@ -9,19 +9,36 @@ import 'package:beverfood_mobile/features/products/data/catalog_repository.dart'
 import 'package:beverfood_mobile/features/products/models/product.dart';
 import 'package:beverfood_mobile/features/products/presentation/widgets/product_card.dart';
 
-/// Home's "Novità": the products the web app flags new, from the API, loaded
-/// once (the Home tab stays alive). Card-sized placeholders while loading, a
-/// retry row on failure, nothing at all when no product is new.
-class NewArrivalsSection extends StatefulWidget {
-  const NewArrivalsSection({super.key, this.onSeeAll});
+/// A Home section of database products from the API ("Novità", "Più
+/// popolari"): its title and a rail, loaded once (the Home tab stays alive).
+/// Card-sized placeholders while loading, a retry row on failure, nothing at
+/// all when the list is empty.
+class CatalogRailSection extends StatefulWidget {
+  const CatalogRailSection({
+    super.key,
+    required this.title,
+    required this.load,
+    required this.errorMessage,
+    this.showNewBadge = false,
+    this.onSeeAll,
+  });
 
+  final String title;
+
+  /// Fetches the products, e.g. `(catalog) => catalog.newProducts()`.
+  final Future<List<Product>> Function(CatalogRepository catalog) load;
+
+  /// Shown with "Riprova" when loading fails, e.g. "Novità non disponibili".
+  final String errorMessage;
+
+  final bool showNewBadge;
   final VoidCallback? onSeeAll;
 
   @override
-  State<NewArrivalsSection> createState() => _NewArrivalsSectionState();
+  State<CatalogRailSection> createState() => _CatalogRailSectionState();
 }
 
-class _NewArrivalsSectionState extends State<NewArrivalsSection> {
+class _CatalogRailSectionState extends State<CatalogRailSection> {
   Future<List<Product>>? _products;
 
   @override
@@ -31,8 +48,8 @@ class _NewArrivalsSectionState extends State<NewArrivalsSection> {
   }
 
   Future<List<Product>> _load() =>
-      CatalogScope.of(context).newProducts().catchError((Object error) {
-        debugPrint('Novità not loaded: $error');
+      widget.load(CatalogScope.of(context)).catchError((Object error) {
+        debugPrint('${widget.title} not loaded: $error');
         throw error;
       });
 
@@ -48,10 +65,10 @@ class _NewArrivalsSectionState extends State<NewArrivalsSection> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SectionHeader(title: 'Novità', onSeeAll: widget.onSeeAll),
+            SectionHeader(title: widget.title, onSeeAll: widget.onSeeAll),
             if (snapshot.hasError)
               LoadErrorRow(
-                message: 'Novità non disponibili',
+                message: widget.errorMessage,
                 onRetry: () => setState(() {
                   _products = _load();
                 }),
@@ -59,7 +76,10 @@ class _NewArrivalsSectionState extends State<NewArrivalsSection> {
             else if (products == null)
               const _Loading()
             else
-              ProductRail(products: products, showNewBadge: true),
+              ProductRail(
+                products: products,
+                showNewBadge: widget.showNewBadge,
+              ),
           ],
         );
       },

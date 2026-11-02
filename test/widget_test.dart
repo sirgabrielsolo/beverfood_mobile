@@ -11,8 +11,8 @@ import 'package:beverfood_mobile/app/app.dart';
 import 'package:beverfood_mobile/app/theme/app_palette.dart';
 import 'package:beverfood_mobile/app/theme/theme_mode_controller.dart';
 import 'package:beverfood_mobile/core/network/api_client.dart';
+import 'package:beverfood_mobile/core/widgets/load_error_row.dart';
 import 'package:beverfood_mobile/features/auth/data/token_store.dart';
-import 'package:beverfood_mobile/features/products/presentation/products_page.dart';
 import 'package:beverfood_mobile/features/products/presentation/widgets/product_card.dart';
 
 Future<ThemeModeController> _themeModeController() async {
@@ -91,6 +91,28 @@ const _newProductsJson = [
   },
 ];
 
+/// The two most ordered products, as `/products/popular` returns them.
+const _popularProductsJson = [
+  {
+    'id': 6121,
+    'name': "BECK'S BT 330 ML 24 PZ",
+    'price': 18.42,
+    'iva': 22.0,
+    'image_url': 'https://example.com/6121.png',
+    'is_new': false,
+    'category': 'BIRRE',
+  },
+  {
+    'id': 5121,
+    'name': 'COCA COLA LAT 330 ML 24 PZ',
+    'price': 13.93,
+    'iva': 22.0,
+    'image_url': 'https://example.com/5121.png',
+    'is_new': false,
+    'category': 'BIBITE',
+  },
+];
+
 /// beverfood_web's /api/v1, faked: one account ([account]), the promos (the
 /// first [promoFailures] requests fail), the sign-in code `123456`, two
 /// comuni and one Torino street. Records the profile sent.
@@ -99,14 +121,20 @@ class _FakeServer {
     Map<String, Object?>? account,
     this.promoFailures = 0,
     this.newFailures = 0,
+    this.popularFailures = 0,
     List<Map<String, Object?>>? newProducts,
+    List<Map<String, Object?>>? popularProducts,
   }) : account = account ?? _accountJson(),
-       newProducts = newProducts ?? _newProductsJson;
+       newProducts = newProducts ?? _newProductsJson,
+       popularProducts = popularProducts ?? _popularProductsJson;
 
   Map<String, Object?> account;
   int promoFailures;
   int newFailures;
+  int popularFailures;
   List<Map<String, Object?>> newProducts;
+  List<Map<String, Object?>> popularProducts;
+  String? popularLimit;
   Map<String, Object?>? sentProfile;
 
   late final client = MockClient((request) async {
@@ -146,6 +174,10 @@ class _FakeServer {
       case ('GET', '/api/v1/products/new'):
         if (newFailures-- > 0) return http.Response('', 503);
         return _json({'products': newProducts});
+      case ('GET', '/api/v1/products/popular'):
+        popularLimit = request.url.queryParameters['limit'];
+        if (popularFailures-- > 0) return http.Response('', 503);
+        return _json({'products': popularProducts});
       case ('POST', '/api/v1/auth/logout'):
         return http.Response('', 204);
       case ('DELETE', '/api/v1/me'):
@@ -406,15 +438,16 @@ void main() {
     expect(find.text("Montepulciano d'Abruzzo DOC"), findsOneWidget);
   });
 
-  testWidgets('the cart quantity is shared between Home and Prodotti', (
+  testWidgets('a product shows the same cart quantity on every card', (
     tester,
   ) async {
-    // No Novità: the first card on Home is then a sample product, which
-    // Prodotti also lists.
+    // The gin is both new and popular: one card in each Home rail.
     await _pumpApp(
       tester,
       await _themeModeController(),
-      server: _FakeServer(newProducts: const []),
+      server: _FakeServer(
+        popularProducts: [_newProductsJson.first, ..._popularProductsJson],
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -422,52 +455,87 @@ void main() {
     await tester.drag(_pageScrollable(), const Offset(0, -200));
     await tester.pumpAndSettle();
 
-    // The first "Più popolari" card: Rosé Spumante Brut.
+    // The gin, first in Novità.
     await tester.tap(find.bySemanticsLabel('Aggiungi al carrello').first);
     await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel('Aggiungi uno').first);
     await tester.pumpAndSettle();
-    expect(find.text('2'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.grid_view_outlined));
+    // Its "Più popolari" card shows the same quantity.
+    await tester.scrollUntilVisible(
+      find.text('Più popolari'),
+      200,
+      scrollable: _pageScrollable(),
+    );
     await tester.pumpAndSettle();
-    // Search Prodotti for it: whatever its place in the grid, it then comes
-    // first. Only within Prodotti: Home stays alive behind it with its own "2".
-    await tester.enterText(
+    expect(find.text('2'), findsNWidgets(2));
+
+    // The minus on the popular card lowers the Novità card too…
+    await tester.ensureVisible(find.bySemanticsLabel('Rimuovi uno').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('Rimuovi uno').last);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Novità'),
+      -200,
+      scrollable: _pageScrollable(),
+    );
+    await tester.drag(_pageScrollable(), const Offset(0, -200));
+    await tester.pumpAndSettle();
+    expect(find.text('2'), findsNothing);
+
+    // …where, at quantity 1, the minus has become a bin, which takes the
+    // product out of the cart and brings back the "Aggiungi" button.
+    expect(find.bySemanticsLabel('Rimuovi uno'), findsNothing);
+    await tester.tap(find.bySemanticsLabel('Rimuovi dal carrello').first);
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Rimuovi dal carrello'), findsNothing);
+    expect(find.textContaining('Vai al carrello'), findsNothing);
+  });
+
+  testWidgets('Più popolari come from the database, without promos', (
+    tester,
+  ) async {
+    final server = await _pumpApp(tester, await _themeModeController());
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Più popolari'),
+      200,
+      scrollable: _pageScrollable(),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text("Beck's bottiglia 330 ml · 24 pz"), findsOneWidget);
+    expect(find.text('Coca Cola lattina 330 ml · 24 pz'), findsOneWidget);
+    // Only the Novità cards carry the badge.
+    expect(find.text('NUOVO'), findsNWidgets(2));
+    expect(server.popularLimit, '20');
+  });
+
+  testWidgets('Più popolari that fail to load can be retried', (tester) async {
+    await _pumpApp(
+      tester,
+      await _themeModeController(),
+      server: _FakeServer(popularFailures: 1),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Più popolari non disponibili'),
+      200,
+      scrollable: _pageScrollable(),
+    );
+
+    await tester.tap(
       find.descendant(
-        of: find.byType(ProductsPage),
-        matching: find.byType(TextField),
+        of: find.ancestor(
+          of: find.text('Più popolari non disponibili'),
+          matching: find.byType(LoadErrorRow),
+        ),
+        matching: find.text('Riprova'),
       ),
-      'Rosé Spumante',
     );
     await tester.pumpAndSettle();
-    final quantity = find.descendant(
-      of: find.byType(ProductsPage),
-      matching: find.text('2'),
-    );
-    expect(quantity, findsOneWidget);
-
-    // At quantity 1 the minus becomes a bin, which takes the product out of
-    // the cart and brings back the "Aggiungi" button.
-    Finder inProdotti(Finder finder) =>
-        find.descendant(of: find.byType(ProductsPage), matching: finder);
-    // Lift the card's buttons out from behind the navigation and cart bars.
-    await tester.ensureVisible(
-      inProdotti(find.bySemanticsLabel('Rimuovi uno')),
-    );
-    await tester.pumpAndSettle();
-    // (Home's card, off screen, finishes its own button animation only when
-    // Home is opened again: its tickers are paused.)
-    await tester.tap(inProdotti(find.bySemanticsLabel('Rimuovi uno')));
-    await tester.pumpAndSettle();
-    expect(inProdotti(find.bySemanticsLabel('Rimuovi uno')), findsNothing);
-    await tester.tap(inProdotti(find.bySemanticsLabel('Rimuovi dal carrello')));
-    await tester.pumpAndSettle();
-    expect(
-      inProdotti(find.bySemanticsLabel('Rimuovi dal carrello')),
-      findsNothing,
-    );
-    expect(inProdotti(find.text('Aggiungi')), findsWidgets);
+    expect(find.text("Beck's bottiglia 330 ml · 24 pz"), findsOneWidget);
   });
 
   testWidgets('Prodotti can be sorted by price', (tester) async {

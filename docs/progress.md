@@ -12,20 +12,21 @@ as well, so they aren't proposed again.
 State at the end of 2026-11-02:
 - **Built and passing:**
   - **App:** sign-in (A1/B2), profile completion (C2), notices (D1/D2), Profilo (E), promos with banners and the
-    detail page (wheel picker for quantities), Novità from the database, and the "Vai al carrello" bar.
-  - **beverfood_web:** the `/api/v1` API, the admin panel (P2) with Clienti app approvals, and the managers' two
-    areas.
-  - **Tests:** 26 widget + 8 unit tests in the app; the web checks are scratch scripts (see beverfood_web's
+    detail page (wheel picker for quantities), **Novità and Più popolari from the database**, and the "Vai al
+    carrello" bar.
+  - **beverfood_web:** the `/api/v1` API (now with `/products/popular`), the admin panel (P2) with Clienti app
+    approvals, and the managers' two areas.
+  - **Tests:** 20 widget + 8 unit tests in the app; the web checks are scratch scripts (see beverfood_web's
     CLAUDE.md, "Checking changes").
 - **Possibly not committed or deployed yet.** At the end of the session the user had the git commands but hadn't run
   them. First run `git status` and `git log -3` in both `beverfood_mobile` and `beverfood_web` to see what landed.
-  Production Novità and the admin panel need beverfood_web pushed: until then the app on production shows "Novità non
+  Production Più popolari needs beverfood_web pushed: until then the app on production shows "Più popolari non
   disponibili".
 - **The user planned to set `OTP_SENDER=log` on Render** (codes in Render's logs, so co-workers can register on
   production until an SMS provider exists). Remove it before public launch.
-- **Next task:** Più popolari from the database (Next up, step 2). First settle how product names look: the user was
-  offered a comparison page of name formats and hasn't answered. `splitProductName` is the stopgap ("GIN NORDES 3 LT" →
-  "Gin Nordes 3 l"; long names get cut at two lines on cards).
+- **Next task:** the **full catalogue** from the API (Next up, step 2): Prodotti and the categories are the last
+  sample data. Product names still go through the stopgap `splitProductName`; the user hasn't chosen a format (no
+  comparison page was ever published).
 - **Local testing:**
   - Start the server: `cd ~/projects/beverfood_web && source .venv/bin/activate && python app.py`.
   - Run the app: `flutter run -d <id> --dart-define=API_BASE_URL=http://192.168.1.9:5000` (the PC's LAN IP; the
@@ -44,10 +45,10 @@ In order. "(user)" marks what only the user can do.
    - Optionally set `OTP_SENDER=log` on Render.
    - Upload the 14 promo PNGs in `beverfood_ops/assets/png_upload/promo/` to Cloudinary, if not done yet, then open
      Immagini mancanti so the web picks them up.
-2. [ ] **Catalogue from the API.** ~~Novità~~ (done). Next: settle the product-name format (see Start here), then
-       **Più popolari** (beverfood_web's `popularity.py` ranking is the obvious source: an endpoint like
-       `/api/v1/products/popular`), then **all products** with the web categories replacing `ProductCategory`, search
-       and sort server-side (`ProductRepository` and the Unsplash images go away). Every product call needs the token.
+2. [ ] **Catalogue from the API.** ~~Novità~~, ~~Più popolari~~ (done). Next: **all products** with the web
+       categories replacing `ProductCategory`, search and sort server-side (the "Più popolari" sort from the same
+       `popularity.py` ranking), with paging; `ProductRepository` and the Unsplash images go away. Every product call
+       needs the token. The product-name format is still open (stopgap `splitProductName`).
 3. [ ] **Cart page and orders from the app.**
    - The cart lists products and promo lines (with their mix). (The "Vai al carrello" bar is done.)
    - Checkout writes an order through a new API endpoint, with the client's notes plus each promo's
@@ -481,4 +482,25 @@ In order. "(user)" marks what only the user can do.
 **Notes**
 - Loading real network photos inside the Flutter test renderer hangs, so visual checks use placeholders.
 - Product names are still the stopgap formatter; the user hasn't decided how names should look.
+
+### 2026-11-02 (Più popolari)
+
+**Done**
+- **beverfood_web:** `GET /api/v1/products/popular?limit=` (login required; 20 by default, clamped to 1–50). It
+  returns the active products in `popularity.py`'s order (the agents' "Più popolari" sort), **without the PROMO
+  category**, in the same JSON as Novità. Locally the top 20 run from Beck's, Ceres and Coca Cola lattina to Red Bull;
+  the promos 92 and 93, ranked 26th and 65th, are left out. Checked on a copy of the local tables in a `scratch`
+  schema (20 products, no promos, the limit's bounds, 401 without a token), then dropped.
+- **App:** `CatalogRepository.popularProducts()`. `NewArrivalsSection` became the shared `CatalogRailSection`
+  (title, loader, error text), used by Novità and Più popolari. The sample `getPopular()` is gone.
+- **Tests:** Più popolari from the database (names, no "NUOVO" badge, `limit=20` asked), its retry, and a rewritten
+  cart-sharing test. Home's sample popular cards no longer exist in Prodotti, so it now checks one product (the gin)
+  in both Home rails. 20 widget + 8 unit tests pass.
+
+**Decisions**
+- **The app reads the database only through beverfood_web's API**, never Postgres directly: a database password
+  can't be shipped inside an app. The user asked about this.
+- **20 products, promos left out** (the user's request). The ranking is still the static snapshot of 2026-09-29;
+  dynamic popularity (beverfood_web's CLAUDE.md, "Decided future work") isn't started.
+- **Names:** kept the stopgap formatter for now.
 

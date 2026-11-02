@@ -11,8 +11,6 @@ class ProductRepository {
 
   List<Product> getNewArrivals() => _products.where((p) => p.isNew).toList();
 
-  List<Product> getPopular() => _products.where((p) => p.isPopular).toList();
-
   List<Product> search({
     String query = '',
     ProductCategory? category,
