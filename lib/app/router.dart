@@ -35,6 +35,9 @@ abstract final class AppRoutes {
   static const completeProfile = '/account/complete';
   static const editAddress = '/account/address';
 
+  /// An email added to the account from Profilo, verified with a code.
+  static const addEmail = '/account/email';
+
   /// The code screen for a code just sent.
   static String loginCodeFor(CodeSent sent) => Uri(
     path: loginCode,
@@ -131,6 +134,13 @@ GoRouter createRouter(AuthController auth) {
       GoRoute(
         path: AppRoutes.editAddress,
         builder: (context, state) => const AddressPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.addEmail,
+        builder: (context, state) => const ContactEntryPage(
+          channel: CodeChannel.email,
+          addToAccount: true,
+        ),
       ),
       // Outside the shell: full screen, over the navigation bar.
       GoRoute(

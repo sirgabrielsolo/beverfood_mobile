@@ -232,6 +232,23 @@ class _FakeServer {
             },
           ],
         });
+      case ('POST', '/api/v1/me/contact/code'):
+        return _json({
+          'destination': body['email'],
+          'channel': body['channel'],
+          'expires_in': 600,
+          'resend_in': 45,
+        });
+      case ('POST', '/api/v1/me/contact/verify'):
+        if (body['code'] != '123456') {
+          return _json({
+            'error': 'Codice non corretto.',
+            'code': 'wrong_code',
+            'field': 'code',
+          }, 400);
+        }
+        account = {...account, 'email': body['email'], 'email_verified': true};
+        return _json({'client': account});
       case ('PUT', '/api/v1/me/profile'):
         sentProfile = body;
         account = {..._accountJson(status: 'pending')};
@@ -757,6 +774,37 @@ void main() {
       findsOneWidget,
     );
     expect(inProdotti(find.byType(ProductCard)), findsOneWidget);
+  });
+
+  testWidgets('an email is added from Profilo on its own page', (tester) async {
+    await _pumpApp(tester, await _themeModeController());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.person_outline_rounded));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Aggiungi'));
+    await tester.pumpAndSettle();
+    expect(find.text('Aggiungi la tua email'), findsOneWidget);
+
+    // Back without sending: nothing breaks (a dialog used to throw here).
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Aggiungi la tua email'), findsNothing);
+
+    await tester.tap(find.text('Aggiungi'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'marco@baraurora.it');
+    await tester.pump();
+    await tester.tap(find.text('Ricevi il codice'));
+    await tester.pumpAndSettle();
+    expect(find.text("Verifica l'email"), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).last, '123456');
+    await tester.pumpAndSettle();
+    expect(find.text('Aggiungi la tua email'), findsNothing);
+    expect(find.text('Email verificata.'), findsOneWidget);
+    expect(find.text('marco@baraurora.it'), findsOneWidget);
   });
 
   testWidgets('dark mode can be turned on from the profile page', (

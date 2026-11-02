@@ -17,18 +17,17 @@ State at the end of 2026-11-02:
     Runs at 90 Hz on the CPH2399.
   - **beverfood_web:** the `/api/v1` API (`/catalog`, gzipped), the admin panel (P2) with Clienti app approvals, and
     the managers' two areas.
-  - **Tests:** 23 widget + 15 unit tests in the app; the web checks are scratch scripts (see beverfood_web's
+  - **Tests:** 24 widget + 15 unit tests in the app; the web checks are scratch scripts (see beverfood_web's
     CLAUDE.md, "Checking changes").
 - **Not committed yet** (the user handles git): run `git status` first.
-- **On the user's phone** the app is the profile build from the last session, signed in as the test account against a
-  local scratch server that's now stopped: it shows "… non disponibili" until it's run again, and against production
-  it signs out (the token is the scratch server's). Sign in again with the test account.
+- **On the user's phone** the user runs the app with `flutter run` against their local beverfood_web, testing a new
+  account (sign-up, the second contact, approval).
 - **The user planned to set `OTP_SENDER=log` on Render** (codes in Render's logs, so co-workers can register on
   production until an SMS provider exists). Remove it before public launch.
 - **Next task:** Next up, step 3 (the cart page and orders). Product names still use the stopgap `splitProductName`.
 - **Local testing:**
   - Start the server: `cd ~/projects/beverfood_web && source .venv/bin/activate && python app.py`.
-  - Run the app: `flutter run -d <id> --dart-define=API_BASE_URL=http://192.168.1.9:5000` (the PC's LAN IP; the
+  - Run the app: `flutter run -d <id> --dart-define=API_BASE_URL=http://172.16.25.128:5000` (the PC's LAN IP, which changes with the network; the
     emulator uses `10.0.2.2`). Sign-in codes print in the server terminal.
   - Approve clients at http://127.0.0.1:5000 → Admin Panel → Clienti app.
   - The local `app_*` tables were emptied once by mistake, so local test accounts may need registering again.
@@ -579,3 +578,19 @@ In order. "(user)" marks what only the user can do.
 - The theme switch still costs one frame of about 30–40 ms at the tap (as on 2026-11-01).
 - A locked or sleeping phone stalls `flutter drive` (no frames without a display); Developer options → Stay awake.
 
+### 2026-11-02 (Aggiungi email)
+
+- **Bug the user hit:** Profilo → Email "Aggiungi" opened a Material `AlertDialog` with a text field; "Annulla" threw
+  `'_dependents.isEmpty': is not true` (red error screen), every time. Cause: the dialog's `TextEditingController` was
+  made in a method and disposed as soon as `showDialog` returned, while the dialog's closing animation still had the
+  `TextField` on screen. Lesson: a controller belongs to a `State` and is disposed in its `dispose()`.
+- **The user also disliked the dialog** (not like the rest of the app). It's now a page, `/account/email`
+  (`AppRoutes.addEmail`): `ContactEntryPage(channel: email, addToAccount: true)`, the sign-in screen's look ("Aggiungi la
+  tua email", the bordered field, "Ricevi il codice"), then the same code bottom sheet as C2; once verified it closes
+  with "Email verificata." The dialog is gone.
+- `contact_verification.dart` now has `askContactCode(context, sent)` (the sheet alone) besides `verifyContact` (send +
+  sheet), so the page's button stops its spinner once the code is sent instead of spinning behind the sheet.
+- The page pops on the next frame: the account update refreshes go_router (`refreshListenable`), which undid a pop made
+  in the same frame (C2's page already did this).
+- Test "an email is added from Profilo on its own page" (back without sending, then the whole flow); `_FakeServer`
+  answers `/me/contact/code` and `/me/contact/verify`.

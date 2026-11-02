@@ -9,10 +9,8 @@ import 'package:beverfood_mobile/app/theme/theme_mode_controller.dart';
 import 'package:beverfood_mobile/core/formatting/phone_format.dart';
 import 'package:beverfood_mobile/core/network/api_client.dart';
 import 'package:beverfood_mobile/features/auth/data/auth_controller.dart';
-import 'package:beverfood_mobile/features/auth/data/auth_repository.dart';
 import 'package:beverfood_mobile/features/auth/models/account.dart';
 import 'package:beverfood_mobile/features/auth/presentation/widgets/auth_widgets.dart';
-import 'package:beverfood_mobile/features/auth/presentation/widgets/contact_verification.dart';
 
 /// The account (E): who's signed in and their state, the contacts and the
 /// address, the theme under "Aspetto", then Esci and Elimina account (off
@@ -338,43 +336,6 @@ class _AccountRows extends StatelessWidget {
 
   final Account account;
 
-  Future<void> _addEmail(BuildContext context) async {
-    final field = TextEditingController();
-    final email = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Aggiungi email'),
-        content: TextField(
-          controller: field,
-          autofocus: true,
-          keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(hintText: 'nome@azienda.it'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Annulla'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(field.text.trim()),
-            child: const Text('Invia codice'),
-          ),
-        ],
-      ),
-    );
-    field.dispose();
-    if (email == null || email.isEmpty || !context.mounted) return;
-    try {
-      await verifyContact(context, CodeChannel.email, email);
-    } on ApiException catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final address = account.address;
@@ -411,7 +372,9 @@ class _AccountRows extends StatelessWidget {
           value: account.emailVerified ? account.email! : 'Aggiungi',
           verified: account.emailVerified,
           highlight: !account.emailVerified,
-          onTap: account.emailVerified ? null : () => _addEmail(context),
+          onTap: account.emailVerified
+              ? null
+              : () => context.push(AppRoutes.addEmail),
         ),
         _InfoRow(
           title: 'Consegna',

@@ -15,9 +15,16 @@ Future<bool> verifyContact(
   CodeChannel channel,
   String value,
 ) async {
-  final auth = AuthScope.read(context);
-  final sent = await auth.repository.requestContactCode(channel, value);
+  final sent = await AuthScope.read(
+    context,
+  ).repository.requestContactCode(channel, value);
   if (!context.mounted) return false;
+  return askContactCode(context, sent);
+}
+
+/// The bottom sheet asking for a code already [sent] to a second contact.
+/// Returns true once verified; the account is updated.
+Future<bool> askContactCode(BuildContext context, CodeSent sent) async {
   final verified = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
