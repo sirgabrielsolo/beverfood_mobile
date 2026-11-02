@@ -3,32 +3,61 @@
 What has been built, the decisions behind it, and what comes next.
 Stack, architecture, conventions and commands are in [`CLAUDE.md`](../CLAUDE.md).
 
-**How to update:** keep **Next up** current, editing it in place. Append a new dated entry to the
+**How to update:** keep **Start here** and **Next up** current, editing them in place. Append a new dated entry to the
 **Log** at the end of each work session; don't rewrite old entries. Record rejected approaches
 as well, so they aren't proposed again.
+
+## Start here (next session)
+
+State at the end of 2026-11-02:
+- **Built and passing:**
+  - **App:** sign-in (A1/B2), profile completion (C2), notices (D1/D2), Profilo (E), promos with banners and the
+    detail page (wheel picker for quantities), Novità from the database, and the "Vai al carrello" bar.
+  - **beverfood_web:** the `/api/v1` API, the admin panel (P2) with Clienti app approvals, and the managers' two
+    areas.
+  - **Tests:** 26 widget + 8 unit tests in the app; the web checks are scratch scripts (see beverfood_web's
+    CLAUDE.md, "Checking changes").
+- **Possibly not committed or deployed yet.** At the end of the session the user had the git commands but hadn't run
+  them. First run `git status` and `git log -3` in both `beverfood_mobile` and `beverfood_web` to see what landed.
+  Production Novità and the admin panel need beverfood_web pushed: until then the app on production shows "Novità non
+  disponibili".
+- **The user planned to set `OTP_SENDER=log` on Render** (codes in Render's logs, so co-workers can register on
+  production until an SMS provider exists). Remove it before public launch.
+- **Next task:** Più popolari from the database (Next up, step 2). First settle how product names look: the user was
+  offered a comparison page of name formats and hasn't answered. `splitProductName` is the stopgap ("GIN NORDES 3 LT" →
+  "Gin Nordes 3 l"; long names get cut at two lines on cards).
+- **Local testing:**
+  - Start the server: `cd ~/projects/beverfood_web && source .venv/bin/activate && python app.py`.
+  - Run the app: `flutter run -d <id> --dart-define=API_BASE_URL=http://192.168.1.9:5000` (the PC's LAN IP; the
+    emulator uses `10.0.2.2`). Sign-in codes print in the server terminal.
+  - Approve clients at http://127.0.0.1:5000 → Admin Panel → Clienti app.
+  - The local `app_*` tables were emptied once by mistake, so local test accounts may need registering again.
+- **Production test account:** `+39 300 000 0000` or `admin@beverfoodsrl.it`, code = Render's `APP_TEST_CODE`
+  (the user knows it; don't write it into files).
 
 ## Next up
 
 In order. "(user)" marks what only the user can do.
 
-1. [ ] **(user) Deploy and upload.**
-   - Push beverfood_web: admin panel, Clienti app, manager areas.
-   - Upload the 14 promo PNGs in `beverfood_ops/assets/png_upload/promo/` to Cloudinary, if not done yet.
-2. [ ] **Catalogue from the API.** ~~Novità~~ (done), then Più popolari, then all products (the user's order). Every product
-       call needs the client's token. Decide how the agent-style names show ("LILIA NATURALE 500 ML 24 PZ";
-       `splitProductName` is the stopgap). It also replaces the in-memory `ProductRepository`, and with it the
-       Unsplash images and categories.
+1. [ ] **(user) Commit, push, deploy, upload.**
+   - Commit and push both repos (beverfood_web: admin panel, Clienti app, `/products/new`).
+   - Optionally set `OTP_SENDER=log` on Render.
+   - Upload the 14 promo PNGs in `beverfood_ops/assets/png_upload/promo/` to Cloudinary, if not done yet, then open
+     Immagini mancanti so the web picks them up.
+2. [ ] **Catalogue from the API.** ~~Novità~~ (done). Next: settle the product-name format (see Start here), then
+       **Più popolari** (beverfood_web's `popularity.py` ranking is the obvious source: an endpoint like
+       `/api/v1/products/popular`), then **all products** with the web categories replacing `ProductCategory`, search
+       and sort server-side (`ProductRepository` and the Unsplash images go away). Every product call needs the token.
 3. [ ] **Cart page and orders from the app.**
-   - The cart lists products and promo lines (with their mix), and `CartBar` ("Vai al carrello") shows while it isn't
-     empty.
-   - Checkout writes an order through a new API endpoint, using the client's notes plus each promo's
-     `PromoSelection.orderNote`.
-   - Orders appear in the manager's Clienti app area, with the same CSV as the agents' orders.
-   - Test-account orders go to the web user admin@beverfoodsrl.it.
+   - The cart lists products and promo lines (with their mix). (The "Vai al carrello" bar is done.)
+   - Checkout writes an order through a new API endpoint, with the client's notes plus each promo's
+     `PromoSelection.orderNote`, and the order linked to the approved client's `erp_client_id`.
+   - Orders appear in the manager's Clienti app area (dark), with the same CSV as the agents' orders.
+   - Test-account orders go to the web user admin@beverfoodsrl.it (the user creates that user).
 4. [ ] **Approval notice** to the client: a push notification (Firebase) and an email.
 5. [ ] **(user) Providers:** SMS (Twilio Verify recommended, WhatsApp later after Meta's business verification), and
        email on `beverfoodsrl.it` (DNS access; Brevo suggested). Then connect them in `client_auth.send_code`. Until
-       then only the test account can sign in on production.
+       then only the test account (or `OTP_SENDER=log`) can sign in on production.
 6. [ ] **(user) Privacy notice:** fill in Beverfood's details on https://claude.ai/artifact/1B9653a9Ymaz1cbmbktART and
        have it reviewed. It's needed before the stores.
 7. [ ] **Product detail page** (cards aren't tappable) and **favourites** (in memory only: persist them, decide where the
@@ -41,6 +70,13 @@ In order. "(user)" marks what only the user can do.
    - A phone performance pass.
    - Search synonyms ("birra" doesn't find "Fusto IPA").
    - Open asset questions: the white-tinted Home logo, and `no_image.png` (no dark variant).
+
+**Design pages** (the user's choices are recorded in the Log; rejected options shouldn't come back):
+- Promo banners: https://claude.ai/artifact/VMge2md1CKKvRYTuU5PyLJ
+- Promo page and prices: https://claude.ai/artifact/9BYuZ1Gk5yLB5ycY3jzhX3
+- App sign-in: https://claude.ai/artifact/J3o7na5R2aKkGkzp8nsSk7
+- Admin panel: https://claude.ai/artifact/FFVYxNrYywkXfeBVzTyXpP
+- Earlier header and add-to-cart options: https://claude.ai/artifact/Ak4aapAPkCsJw64f171T19
 
 ## Log
 
