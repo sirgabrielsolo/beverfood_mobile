@@ -13,6 +13,14 @@ as well, so they aren't proposed again.
       `beverfood_ops/assets/png_upload/promo/` to Cloudinary (`<id>.png` replaces each promo's product image,
       `promo_banner_<id>.png` is new), then push beverfood_web (`api.py`, `promos.py`, `app.py`) so production
       serves `/api/v1/promos`. Until then the app's banners show the "image missing" placeholder.
+- [ ] **Client accounts.** The API exists in beverfood_web (uncommitted, see the log below). Next: the **app screens**
+      (A1, B2, C2, D1+D2, E, as chosen), sending the token, then the **admin panel** (P2) with the approval page and
+      the manager's split view. Then push notifications (Firebase) and the SMS/email provider.
+      Privacy notice draft (the user will add the details): https://claude.ai/artifact/1B9653a9Ymaz1cbmbktART
+- [ ] **User to set up:** an SMS (+ later WhatsApp) verification provider account (Twilio Verify recommended), an
+      email sender on `beverfoodsrl.it` (DNS access needed; Brevo suggested), Meta WhatsApp Business verification.
+- [ ] **Deploying beverfood_web:** `/api/v1` now requires a client login, so it can go to production. On Render set
+      `APP_TEST_CODE` (the test account's code) and leave `OTP_SENDER` unset until a provider exists.
 - [ ] **Checkout notes.** When the order is built: the client can write notes; the manager sees them followed by
       each promo's `PromoSelection.orderNote`. The client sees the mix in the cart, not the note.
 - [ ] **Cart page** must list promo lines (with their mix) next to products; `CartController` already holds them.
@@ -284,4 +292,69 @@ as well, so they aren't proposed again.
 - The bottom bar is 38 pt like the cards' "Aggiungi" bar (the user asked for it as tall as the quantity stepper, which
   went away with "one per order").
 - Rejected from the proposals: D3 Passi, D2's receipt content, D1's square image and title; prices P1, P3, P4.
+
+### 2026-11-02 (evening)
+
+**Decisions: client accounts** (the user's answers; design pages above)
+- **Nothing without an account:** the app shows only the login screen until the user signs in.
+- **Sign-in without passwords:** the client signs in or registers with a **phone** (SMS or WhatsApp code) or an
+  **email** (code by email); the same flow logs in later. A verified account sees the catalogue with prices.
+- **To order:** the client completes the profile (Nome, Cognome, the other contact, Ragione sociale, Partita IVA,
+  delivery address chosen from a list for the **province of Torino only**), then **any manager or admin** approves it
+  in the web app and assigns the client's ERP **ID**.
+  - Someone who signed up with an email must also verify the phone with a code.
+  - The email is optional when the phone is verified.
+- **Who can be a client:** existing and new businesses; private people only with a Partita IVA.
+- **Separate from the agents' clients:** app clients have their own table. The agents' client import never touches it.
+  A business can exist in both places, and an ID that's already used only shows a warning.
+- **Against fake accounts:** a disposable-email blocklist, Italian mobile numbers only (optionally a VoIP lookup), and
+  the Partita IVA checked on VIES and shown at approval.
+- **Test account** for co-workers and the store reviews: fixed email and phone, a fixed code, no SMS sent, approved
+  from the start, and "Elimina account" greyed out.
+- **"Elimina account"** is in Profilo (both stores require it).
+- **Admin panel:** to be redesigned. It holds Clienti app, Utenti, Catalogo (Importa CSV and Immagini mancanti move
+  there) and Impostazioni. Managers get a "Clienti app" tab.
+- **Email:** sent from `@beverfoodsrl.it`; the user will provide DNS access later. There's no provider yet, for SMS
+  or for email.
+- **Order of work:** design pages → DB + API → approval page → app screens → the real provider.
+
+### 2026-11-02 (night)
+
+**Decisions (from the design pages)**
+- **App:** **A1** with the logo in its own red, large, filling the space above "Benvenuto su Beverfood"; **B2**
+  (single code field); **C2** (three steps).
+- **D1 + D2:** a red notice on Home while the profile isn't sent, then a yellow one: "Potrai inviare ordini una volta
+  verificati i tuoi dati". The same notice goes in the cart above a disabled "Invia ordine".
+- **E:** the theme settings go under an "Aspetto" section header, in a standard settings-list layout.
+- **Buttons:** 46 pt on these screens.
+- **Test account:** `admin@beverfoodsrl.it` / `+39 300 000 0000`. Its orders go to the web user admin@beverfoodsrl.it
+  (the user will create it).
+- **Approval notice to the client:** a push notification and an email.
+- **After approval only the address can change.** Rejected clients see the reason and can resend. Clients can be
+  suspended.
+- **Admin panel: P2** (sidebar).
+  - **Approval page:** the ID warning stops at the address, with no explanation after it. **The P.IVA is checked by
+    hand**: a "Partita IVA verificata" checkbox, and "Approva" is enabled only with that ticked and the client ID
+    filled. So no VIES in the app or the API.
+- **Managers:** after login they choose between the agents' orders (light theme) and **Clienti app** (dark theme),
+  which are separate. So there's no "APP" badge.
+- **Privacy notice:** kept as drafted; the user will provide the details.
+
+**Done**
+- **beverfood_web:**
+  - Tables `app_client`, `app_session` and `app_code`. `ensure-columns` now creates new tables too, for Render's
+    pre-deploy.
+  - `client_auth.py`: Italian mobile and disposable-email checks, P.IVA check digit, 6-digit codes (hashed, limited),
+    bearer sessions, and the test account.
+  - `places.py` + `data/places_torino.json.gz`: 312 comuni and about 20,600 OSM streets; Torino's streets have their
+    CAPs.
+  - `api.py`: auth, me, profile, address, second contact, delete, places, and promos behind login.
+  - 33 end-to-end checks passed against the local database (a scratch script, then cleaned up).
+- **beverfood_ops:** `scripts/places/build_places.py` (+ Overpass queries) rebuilds the address data.
+- The local `.env` got `OTP_SENDER=log` and `APP_TEST_CODE=000000` (development only).
+
+**Notes**
+- **Address data:** OSM house numbers rarely carry the comune (79% don't), so streets come from each comune's
+  boundary. Ingria, Massello, Pramollo and Ribordone have no named streets; the app offers "La via non è in elenco".
+- **Mistake:** the first Overpass request carried the user's email in its User-Agent; later requests carry none.
 
