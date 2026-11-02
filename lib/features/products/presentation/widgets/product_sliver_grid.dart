@@ -11,16 +11,14 @@ class ProductSliverGrid extends StatelessWidget {
 
   final List<Product> products;
 
+  /// [sliver], or the "Nessun prodotto trovato" message when [isEmpty].
+  static Widget emptyOr({required bool isEmpty, required Widget sliver}) =>
+      isEmpty ? const SliverToBoxAdapter(child: _NothingFound()) : sliver;
+
   @override
   Widget build(BuildContext context) {
     if (products.isEmpty) {
-      return const SliverToBoxAdapter(
-        child: EmptyState(
-          icon: Icons.search_off_rounded,
-          title: 'Nessun prodotto trovato',
-          message: 'Prova a cambiare categoria o termine di ricerca.',
-        ),
-      );
+      return const SliverToBoxAdapter(child: _NothingFound());
     }
 
     return SliverPadding(
@@ -34,6 +32,17 @@ class ProductSliverGrid extends StatelessWidget {
       ),
     );
   }
+}
+
+class _NothingFound extends StatelessWidget {
+  const _NothingFound();
+
+  @override
+  Widget build(BuildContext context) => const EmptyState(
+    icon: Icons.search_off_rounded,
+    title: 'Nessun prodotto trovato',
+    message: 'Prova a cambiare categoria o termine di ricerca.',
+  );
 }
 
 /// [_columns] columns of cards exactly as tall as [ProductCard] needs: the

@@ -12,21 +12,20 @@ as well, so they aren't proposed again.
 State at the end of 2026-11-02:
 - **Built and passing:**
   - **App:** sign-in (A1/B2), profile completion (C2), notices (D1/D2), Profilo (E), promos with banners and the
-    detail page (wheel picker for quantities), **Novità and Più popolari from the database**, and the "Vai al
-    carrello" bar.
-  - **beverfood_web:** the `/api/v1` API (now with `/products/popular`), the admin panel (P2) with Clienti app
+    detail page, the "Vai al carrello" bar, and **the whole catalogue from the database**: Novità, Più popolari, every
+    category on Home (H3) and in Prodotti (P1 tabs, Promozioni tab), search and sort on the phone (L1).
+  - **beverfood_web:** the `/api/v1` API (now `/catalog`, gzipped), the admin panel (P2) with Clienti app
     approvals, and the managers' two areas.
-  - **Tests:** 20 widget + 8 unit tests in the app; the web checks are scratch scripts (see beverfood_web's
+  - **Tests:** 23 widget + 14 unit tests in the app; the web checks are scratch scripts (see beverfood_web's
     CLAUDE.md, "Checking changes").
-- **Possibly not committed or deployed yet.** At the end of the session the user had the git commands but hadn't run
-  them. First run `git status` and `git log -3` in both `beverfood_mobile` and `beverfood_web` to see what landed.
-  Production Più popolari needs beverfood_web pushed: until then the app on production shows "Più popolari non
-  disponibili".
+- **Not committed or deployed yet** (the user handles git): first run `git status` in both repos. The app needs
+  beverfood_web's `/catalog` deployed: against an older server Home and Prodotti show "… non disponibili".
+- **Not yet seen on a phone:** the catalogue was checked in widget tests and test-renderer screenshots (real category
+  photos, placeholders for products). Try it on the CPH2399 against the local server: scrolling Prodotti's 1222
+  products, Cloudinary thumbnails, the disk cache, pull-to-refresh.
 - **The user planned to set `OTP_SENDER=log` on Render** (codes in Render's logs, so co-workers can register on
   production until an SMS provider exists). Remove it before public launch.
-- **Next task:** the **full catalogue** from the API (Next up, step 2): Prodotti and the categories are the last
-  sample data. Product names still go through the stopgap `splitProductName`; the user hasn't chosen a format (no
-  comparison page was ever published).
+- **Next task:** Next up, step 3 (the cart page and orders). Product names still use the stopgap `splitProductName`.
 - **Local testing:**
   - Start the server: `cd ~/projects/beverfood_web && source .venv/bin/activate && python app.py`.
   - Run the app: `flutter run -d <id> --dart-define=API_BASE_URL=http://192.168.1.9:5000` (the PC's LAN IP; the
@@ -45,10 +44,8 @@ In order. "(user)" marks what only the user can do.
    - Optionally set `OTP_SENDER=log` on Render.
    - Upload the 14 promo PNGs in `beverfood_ops/assets/png_upload/promo/` to Cloudinary, if not done yet, then open
      Immagini mancanti so the web picks them up.
-2. [ ] **Catalogue from the API.** ~~Novità~~, ~~Più popolari~~ (done). Next: **all products** with the web
-       categories replacing `ProductCategory`, search and sort server-side (the "Più popolari" sort from the same
-       `popularity.py` ranking), with paging; `ProductRepository` and the Unsplash images go away. Every product call
-       needs the token. The product-name format is still open (stopgap `splitProductName`).
+2. [x] **Catalogue from the API** (done 2026-11-02): Novità, Più popolari, all products and categories. Still open:
+       the product-name format (stopgap `splitProductName`), and a check on the phone (Start here).
 3. [ ] **Cart page and orders from the app.**
    - The cart lists products and promo lines (with their mix). (The "Vai al carrello" bar is done.)
    - Checkout writes an order through a new API endpoint, with the client's notes plus each promo's
@@ -67,12 +64,12 @@ In order. "(user)" marks what only the user can do.
    - App label and `applicationId` (still `com.example.beverfood_mobile`).
    - Launcher and web icons.
    - Store listings, with the test account as the review account.
-   - Image disk caching (slower first scroll).
    - A phone performance pass.
    - Search synonyms ("birra" doesn't find "Fusto IPA").
    - Open asset questions: the white-tinted Home logo, and `no_image.png` (no dark variant).
 
 **Design pages** (the user's choices are recorded in the Log; rejected options shouldn't come back):
+- Categories and catalogue: https://claude.ai/artifact/HK4w7qZGNx8wWPHYM7jKsd
 - Promo banners: https://claude.ai/artifact/VMge2md1CKKvRYTuU5PyLJ
 - Promo page and prices: https://claude.ai/artifact/9BYuZ1Gk5yLB5ycY3jzhX3
 - App sign-in: https://claude.ai/artifact/J3o7na5R2aKkGkzp8nsSk7
@@ -503,4 +500,46 @@ In order. "(user)" marks what only the user can do.
 - **20 products, promos left out** (the user's request). The ranking is still the static snapshot of 2026-09-29;
   dynamic popularity (beverfood_web's CLAUDE.md, "Decided future work") isn't started.
 - **Names:** kept the stopgap formatter for now.
+
+### 2026-11-02 (catalogue and categories)
+
+**Decisions** (options page https://claude.ai/artifact/HK4w7qZGNx8wWPHYM7jKsd)
+- **H3:** Home shows every category in a grid, four per row, **with Novità and Promozioni** as the first two tiles.
+- **P1:** Prodotti keeps the category tabs ("Tutti" first). The sort starts on **Più popolari**; **"Consigliati" is
+  gone**. "Vedi tutti" under Più popolari opens Prodotti on Tutti sorted by Più popolari (even if the client changed
+  the sort there); under Novità it opens the Novità tab.
+- **L1:** the whole catalogue in one request, searched, filtered and sorted on the phone.
+- **Empty categories are hidden** (Specialità, Kebab and Caffè today); they come back once they have products.
+- **Category names:** sentence case, as Italian shops write them ("Vini e spumanti", "Caffè"); PROMO is shown as
+  "Promozioni".
+- **Category photos are bundled in the app**, not on Cloudinary.
+- Rejected on the page: H1 (one row), H2 (two rows), P2 (categories first), P3 (groups), L2 (server paging).
+
+**Done**
+- **beverfood_web:** `GET /api/v1/catalog` (products with `category_id`, categories with counts, popular and new
+  orders) replaces `/products/new` and `/products/popular`. API answers over 1 KB are gzipped (263 KB → 32 KB).
+  Checked on a scratch copy: 1222 products + 7 promos = 1229, 39 categories, ~40 ms.
+- **beverfood_ops:** `scripts/category_images/build.sh` turns `static/img/categories/*.png` (9.1 MB) into 256 px
+  WebP in the app's `assets/images/categories/` (445 KB, 41 files).
+- **App:**
+  - `Catalog` + `CatalogController` (loaded once signed in, refreshed on resume after 5 minutes, pull-to-refresh on
+    Prodotti, cleared on sign-out).
+  - Home: the Novità and Più popolari rails read it; `CategoryGrid` (H3).
+  - Prodotti: a tab per category, the Promozioni tab lists the promo banners.
+  - Search ignores accents and needs every word, and matches the ERP name too ("coca lat").
+  - Sort: Più popolari, price, name.
+  - Removed `ProductRepository`, the sample products and categories, and Unsplash.
+- **Lighter product photos:** Cloudinary thumbnails (`w_400,f_webp`; Beck's 7.6 KB instead of 76.6 KB), kept on disk
+  with `cached_network_image` (set in `main()`, so tests keep `NetworkImage`).
+- **Fixed:** the category tabs used the system font: `TabBar` replaces the inherited text style, so its label styles
+  now name Nunito Sans.
+- **Tests:** 23 widget + 14 unit. New ones cover the category grid's order, a tile opening its tab, Vedi tutti
+  re-applying Più popolari, the Promozioni tab, nothing new, catalogue retry, and unit tests for search, sort, names
+  and thumbnail URLs. A debug APK builds.
+
+**Notes**
+- The Promozioni tab's search matches the promo's name and banner texts.
+- `integration_test/scroll_performance_test.dart` builds the app with the device's saved token and the production
+  API, so it measures the catalogue only when that device is signed in and production has `/catalog`; otherwise it
+  stops at the welcome screen. Not run this session.
 

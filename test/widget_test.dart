@@ -13,6 +13,10 @@ import 'package:beverfood_mobile/app/theme/theme_mode_controller.dart';
 import 'package:beverfood_mobile/core/network/api_client.dart';
 import 'package:beverfood_mobile/core/widgets/load_error_row.dart';
 import 'package:beverfood_mobile/features/auth/data/token_store.dart';
+import 'package:beverfood_mobile/features/products/presentation/products_page.dart';
+import 'package:beverfood_mobile/features/home/presentation/widgets/section_header.dart';
+import 'package:beverfood_mobile/features/home/presentation/widgets/product_rail.dart';
+import 'package:beverfood_mobile/features/home/presentation/widgets/category_grid.dart';
 import 'package:beverfood_mobile/features/products/presentation/widgets/product_card.dart';
 
 Future<ThemeModeController> _themeModeController() async {
@@ -69,72 +73,93 @@ Map<String, Object?> _accountJson({
   'address': null,
 };
 
-/// Two products flagged new, named the way the ERP writes them.
-const _newProductsJson = [
-  {
-    'id': 73284,
-    'name': 'GIN NORDES 3 LT',
-    'price': 99.99,
-    'iva': 22.0,
-    'image_url': 'https://example.com/73284.png',
-    'is_new': true,
-    'category': 'GIN',
-  },
-  {
-    'id': 51725,
-    'name': 'PEPSI ZERO GINGERBREAD LATT 330 ML 24 PZ',
-    'price': 12.52,
-    'iva': 22.0,
-    'image_url': 'https://example.com/51725.png',
-    'is_new': true,
-    'category': 'BIBITE',
-  },
+Map<String, Object?> _product(
+  int id,
+  String name,
+  double price,
+  int categoryId,
+  String category, {
+  bool isNew = false,
+}) => {
+  'id': id,
+  'name': name,
+  'price': price,
+  'iva': 22.0,
+  'image_url': 'https://example.com/$id.png',
+  'is_new': isNew,
+  'category': category,
+  'category_id': categoryId,
+};
+
+/// The catalogue's products, named the way the ERP writes them, by name.
+final _productsJson = [
+  _product(6121, "BECK'S BT 330 ML 24 PZ", 18.42, 38, 'BIRRE'),
+  _product(5121, 'COCA COLA LAT 330 ML 24 PZ', 13.93, 37, 'BIBITE'),
+  _product(6650, 'FOSCARO PRIMA CUVEE 750 ML', 2.36, 39, 'VINI E SPUMANTI'),
+  _product(73284, 'GIN NORDES 3 LT', 99.99, 67, 'GIN', isNew: true),
+  _product(
+    51725,
+    'PEPSI ZERO GINGERBREAD LATT 330 ML 24 PZ',
+    12.52,
+    37,
+    'BIBITE',
+    isNew: true,
+  ),
+  _product(5051, 'SAN BERNARDO NATURALE 500 ML 24 PZ', 4.1, 36, 'ACQUA'),
 ];
 
-/// The two most ordered products, as `/products/popular` returns them.
-const _popularProductsJson = [
-  {
-    'id': 6121,
-    'name': "BECK'S BT 330 ML 24 PZ",
-    'price': 18.42,
-    'iva': 22.0,
-    'image_url': 'https://example.com/6121.png',
-    'is_new': false,
-    'category': 'BIRRE',
-  },
-  {
-    'id': 5121,
-    'name': 'COCA COLA LAT 330 ML 24 PZ',
-    'price': 13.93,
-    'iva': 22.0,
-    'image_url': 'https://example.com/5121.png',
-    'is_new': false,
-    'category': 'BIBITE',
-  },
-];
+/// `GET /api/v1/catalog` as beverfood_web builds it: Novità (the products in
+/// [newIds]) and Promo first, then the categories by name with their counts.
+Map<String, Object?> _catalogJson({
+  required List<int> newIds,
+  required List<int> popular,
+}) {
+  final counts = <int, ({String name, int count})>{};
+  for (final p in _productsJson) {
+    final id = p['category_id']! as int;
+    counts[id] = (
+      name: p['category']! as String,
+      count: (counts[id]?.count ?? 0) + 1,
+    );
+  }
+  final byName = counts.entries.toList()
+    ..sort((a, b) => a.value.name.compareTo(b.value.name));
+  return {
+    'categories': [
+      if (newIds.isNotEmpty)
+        {'id': 9090, 'name': 'NOVITÀ', 'count': newIds.length},
+      {'id': 99, 'name': 'PROMO', 'count': 3},
+      for (final c in byName)
+        {'id': c.key, 'name': c.value.name, 'count': c.value.count},
+    ],
+    'products': [
+      for (final p in _productsJson) {...p, 'is_new': newIds.contains(p['id'])},
+    ],
+    'popular': popular,
+    'new': newIds,
+  };
+}
 
-/// beverfood_web's /api/v1, faked: one account ([account]), the promos (the
-/// first [promoFailures] requests fail), the sign-in code `123456`, two
-/// comuni and one Torino street. Records the profile sent.
+/// beverfood_web's /api/v1, faked: one account ([account]), the promos and
+/// the catalogue (the first [promoFailures] / [catalogFailures] requests
+/// fail), the sign-in code `123456`, two comuni and one Torino street.
+/// Records the profile sent.
 class _FakeServer {
   _FakeServer({
     Map<String, Object?>? account,
     this.promoFailures = 0,
-    this.newFailures = 0,
-    this.popularFailures = 0,
-    List<Map<String, Object?>>? newProducts,
-    List<Map<String, Object?>>? popularProducts,
-  }) : account = account ?? _accountJson(),
-       newProducts = newProducts ?? _newProductsJson,
-       popularProducts = popularProducts ?? _popularProductsJson;
+    this.catalogFailures = 0,
+    this.newIds = const [73284, 51725],
+    this.popular = const [6121, 5121, 5051, 6650],
+  }) : account = account ?? _accountJson();
 
   Map<String, Object?> account;
   int promoFailures;
-  int newFailures;
-  int popularFailures;
-  List<Map<String, Object?>> newProducts;
-  List<Map<String, Object?>> popularProducts;
-  String? popularLimit;
+  int catalogFailures;
+
+  /// The products flagged new, newest first, and the most ordered ones.
+  final List<int> newIds;
+  final List<int> popular;
   Map<String, Object?>? sentProfile;
 
   late final client = MockClient((request) async {
@@ -171,13 +196,9 @@ class _FakeServer {
       case ('GET', '/api/v1/promos'):
         if (promoFailures-- > 0) return http.Response('', 503);
         return _json(_promosJson);
-      case ('GET', '/api/v1/products/new'):
-        if (newFailures-- > 0) return http.Response('', 503);
-        return _json({'products': newProducts});
-      case ('GET', '/api/v1/products/popular'):
-        popularLimit = request.url.queryParameters['limit'];
-        if (popularFailures-- > 0) return http.Response('', 503);
-        return _json({'products': popularProducts});
+      case ('GET', '/api/v1/catalog'):
+        if (catalogFailures-- > 0) return http.Response('', 503);
+        return _json(_catalogJson(newIds: newIds, popular: popular));
       case ('POST', '/api/v1/auth/logout'):
         return http.Response('', 204);
       case ('DELETE', '/api/v1/me'):
@@ -312,6 +333,19 @@ Future<void> _scrollProfileTo(WidgetTester tester, Finder finder) async {
 }
 
 /// The vertical scrollable of the page currently on screen.
+/// The name on Prodotti's first card.
+String _firstProductsCard(WidgetTester tester) => tester
+    .widget<ProductCard>(
+      find
+          .descendant(
+            of: find.byType(ProductsPage),
+            matching: find.byType(ProductCard),
+          )
+          .first,
+    )
+    .product
+    .name;
+
 Finder _pageScrollable() => find
     .descendant(
       of: find.byType(CustomScrollView),
@@ -333,7 +367,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('PROMO NUOVA'), findsOneWidget);
-    expect(find.text('Novità'), findsOneWidget);
+    expect(find.text('Novità'), findsWidgets);
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(NavigationDestination), findsNWidgets(4));
 
@@ -418,11 +452,44 @@ void main() {
     expect(find.byType(NavigationBar), findsOneWidget);
   });
 
+  testWidgets('Home shows every category, Novità and Promozioni first', (
+    tester,
+  ) async {
+    await _pumpApp(tester, await _themeModeController());
+    await tester.pumpAndSettle();
+    // The last tile; the grid's two rows are then all on screen.
+    await tester.scrollUntilVisible(
+      find.bySemanticsLabel('Vini e spumanti, 1 prodotti'),
+      300,
+      scrollable: _pageScrollable(),
+    );
+
+    final labels = [
+      for (final element
+          in find
+              .descendant(
+                of: find.byType(CategoryGrid),
+                matching: find.byType(Text),
+              )
+              .evaluate())
+        (element.widget as Text).data,
+    ];
+    expect(labels, [
+      'Novità',
+      'Promozioni',
+      'Acqua',
+      'Bibite',
+      'Birre',
+      'Gin',
+      'Vini e spumanti',
+    ]);
+  });
+
   testWidgets('a category tile opens Prodotti on that tab', (tester) async {
     await _pumpApp(tester, await _themeModeController());
     await tester.pumpAndSettle();
 
-    final tile = find.text('Birre');
+    final tile = find.bySemanticsLabel('Birre, 1 prodotti');
     await tester.scrollUntilVisible(tile, 300, scrollable: _pageScrollable());
     // Bring the tile out from behind the navigation bar.
     await tester.drag(_pageScrollable(), const Offset(0, -150));
@@ -430,12 +497,26 @@ void main() {
     await tester.tap(tile);
     await tester.pumpAndSettle();
 
-    expect(find.text('Birra Lager chiara'), findsOneWidget);
-    expect(find.text('Chianti Classico DOCG'), findsNothing);
+    Finder inProdotti(Finder finder) =>
+        find.descendant(of: find.byType(ProductsPage), matching: finder);
+    expect(
+      inProdotti(find.text("Beck's bottiglia 330 ml · 24 pz")),
+      findsOneWidget,
+    );
+    expect(
+      inProdotti(find.text('Coca Cola lattina 330 ml · 24 pz')),
+      findsNothing,
+    );
 
-    await tester.tap(find.text('Tutti'));
+    // The tabs scrolled to centre Birre: back to Tutti, at the start.
+    await tester.ensureVisible(inProdotti(find.text('Tutti')));
     await tester.pumpAndSettle();
-    expect(find.text("Montepulciano d'Abruzzo DOC"), findsOneWidget);
+    await tester.tap(inProdotti(find.text('Tutti')));
+    await tester.pumpAndSettle();
+    expect(
+      inProdotti(find.text('Coca Cola lattina 330 ml · 24 pz')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a product shows the same cart quantity on every card', (
@@ -445,9 +526,7 @@ void main() {
     await _pumpApp(
       tester,
       await _themeModeController(),
-      server: _FakeServer(
-        popularProducts: [_newProductsJson.first, ..._popularProductsJson],
-      ),
+      server: _FakeServer(popular: [73284, 6121, 5121]),
     );
     await tester.pumpAndSettle();
 
@@ -476,7 +555,7 @@ void main() {
     await tester.tap(find.bySemanticsLabel('Rimuovi uno').last);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('Novità'),
+      find.widgetWithText(SectionHeader, 'Novità'),
       -200,
       scrollable: _pageScrollable(),
     );
@@ -493,10 +572,10 @@ void main() {
     expect(find.textContaining('Vai al carrello'), findsNothing);
   });
 
-  testWidgets('Più popolari come from the database, without promos', (
+  testWidgets('Più popolari come from the catalogue, most ordered first', (
     tester,
   ) async {
-    final server = await _pumpApp(tester, await _themeModeController());
+    await _pumpApp(tester, await _themeModeController());
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Più popolari'),
@@ -505,37 +584,106 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text("Beck's bottiglia 330 ml · 24 pz"), findsOneWidget);
-    expect(find.text('Coca Cola lattina 330 ml · 24 pz'), findsOneWidget);
+    final rail = find.ancestor(
+      of: find.text("Beck's bottiglia 330 ml · 24 pz"),
+      matching: find.byType(ProductRail),
+    );
+    final names = [
+      for (final card in tester.widgetList<ProductCard>(
+        find.descendant(of: rail, matching: find.byType(ProductCard)),
+      ))
+        card.product.name,
+    ];
+    expect(names.take(2), [
+      "Beck's bottiglia 330 ml · 24 pz",
+      'Coca Cola lattina 330 ml · 24 pz',
+    ]);
     // Only the Novità cards carry the badge.
     expect(find.text('NUOVO'), findsNWidgets(2));
-    expect(server.popularLimit, '20');
   });
 
-  testWidgets('Più popolari that fail to load can be retried', (tester) async {
+  testWidgets('a catalogue that fails to load can be retried', (tester) async {
     await _pumpApp(
       tester,
       await _themeModeController(),
-      server: _FakeServer(popularFailures: 1),
+      server: _FakeServer(catalogFailures: 1),
     );
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('Più popolari non disponibili'),
-      200,
-      scrollable: _pageScrollable(),
-    );
+    expect(find.text('Novità non disponibili'), findsOneWidget);
 
+    // One retry loads the whole catalogue: both rails come back.
     await tester.tap(
       find.descendant(
         of: find.ancestor(
-          of: find.text('Più popolari non disponibili'),
+          of: find.text('Novità non disponibili'),
           matching: find.byType(LoadErrorRow),
         ),
         matching: find.text('Riprova'),
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text("Beck's bottiglia 330 ml · 24 pz"), findsOneWidget);
+    expect(find.text('Gin Nordes 3 l'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text("Beck's bottiglia 330 ml · 24 pz"),
+      200,
+      scrollable: _pageScrollable(),
+    );
+    expect(find.text('Più popolari non disponibili'), findsNothing);
+  });
+
+  testWidgets('Vedi tutti under Più popolari opens Prodotti by popularity', (
+    tester,
+  ) async {
+    await _pumpApp(tester, await _themeModeController());
+    await tester.pumpAndSettle();
+
+    // Prodotti sorted by price first: the cheapest, the Foscaro, leads.
+    await tester.tap(find.byIcon(Icons.grid_view_outlined));
+    await tester.pumpAndSettle();
+    expect(_firstProductsCard(tester), "Beck's bottiglia 330 ml · 24 pz");
+    await tester.tap(find.byTooltip('Filtra e ordina'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Prezzo crescente'));
+    await tester.pumpAndSettle();
+    expect(_firstProductsCard(tester), 'Foscaro Prima Cuvee 750 ml');
+
+    await tester.tap(find.byIcon(Icons.home_outlined));
+    await tester.pumpAndSettle();
+    final header = find.ancestor(
+      of: find.text('Più popolari'),
+      matching: find.byType(SectionHeader),
+    );
+    await tester.scrollUntilVisible(header, 200, scrollable: _pageScrollable());
+    await tester.tap(
+      find.descendant(of: header, matching: find.text('Vedi tutti')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ProductsPage), findsOneWidget);
+    expect(_firstProductsCard(tester), "Beck's bottiglia 330 ml · 24 pz");
+  });
+
+  testWidgets('the Promozioni tab lists the promos, which open their page', (
+    tester,
+  ) async {
+    await _pumpApp(tester, await _themeModeController());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.grid_view_outlined));
+    await tester.pumpAndSettle();
+
+    Finder inProdotti(Finder finder) =>
+        find.descendant(of: find.byType(ProductsPage), matching: finder);
+    await tester.tap(inProdotti(find.text('Promozioni')));
+    await tester.pumpAndSettle();
+    expect(inProdotti(find.byType(ProductCard)), findsNothing);
+
+    final lilia = inProdotti(
+      find.bySemanticsLabel('Acqua Lilia, 2+1, Naturale o gas'),
+    );
+    expect(lilia, findsOneWidget);
+    await tester.tap(lilia);
+    await tester.pumpAndSettle();
+    expect(find.text('Promozione'), findsOneWidget);
   });
 
   testWidgets('Prodotti can be sorted by price', (tester) async {
@@ -546,11 +694,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Filtra e ordina'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Prezzo crescente'));
+    // Più popolari is the default; "Consigliati" is gone.
+    expect(find.text('Consigliati'), findsNothing);
+    await tester.tap(find.text('Prezzo decrescente'));
     await tester.pumpAndSettle();
 
-    // The cheapest product comes first.
-    expect(find.text('Acqua minerale naturale'), findsOneWidget);
+    // The dearest product comes first.
+    expect(_firstProductsCard(tester), 'Gin Nordes 3 l');
   });
 
   testWidgets('Home and Prodotti fit a 360 dp screen with large text', (
@@ -592,10 +742,16 @@ void main() {
     final field = find.byType(TextField);
     expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
 
-    await tester.enterText(field, 'chianti');
+    // Every word counts, in the display or the ERP name ("lat").
+    await tester.enterText(field, 'coca lat');
     await tester.pumpAndSettle();
-    expect(find.text('Chianti Classico DOCG'), findsOneWidget);
-    expect(find.text('Rosé Spumante Brut'), findsNothing);
+    Finder inProdotti(Finder finder) =>
+        find.descendant(of: find.byType(ProductsPage), matching: finder);
+    expect(
+      inProdotti(find.text('Coca Cola lattina 330 ml · 24 pz')),
+      findsOneWidget,
+    );
+    expect(inProdotti(find.byType(ProductCard)), findsOneWidget);
   });
 
   testWidgets('dark mode can be turned on from the profile page', (
@@ -859,6 +1015,24 @@ void main() {
     expect(find.text('Scegli ancora 1 in omaggio'), findsOneWidget);
   });
 
+  testWidgets('with nothing new, Novità is neither a rail nor a category', (
+    tester,
+  ) async {
+    await _pumpApp(
+      tester,
+      await _themeModeController(),
+      server: _FakeServer(newIds: const []),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.bySemanticsLabel('Acqua, 1 prodotti'),
+      300,
+      scrollable: _pageScrollable(),
+    );
+    expect(find.text('Novità'), findsNothing);
+    expect(find.bySemanticsLabel('Promozioni, 3 prodotti'), findsOneWidget);
+  });
+
   testWidgets('Novità come from the database, with readable names', (
     tester,
   ) async {
@@ -872,20 +1046,6 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('NUOVO'), findsNWidgets(2));
-  });
-
-  testWidgets('Novità that fail to load can be retried', (tester) async {
-    await _pumpApp(
-      tester,
-      await _themeModeController(),
-      server: _FakeServer(newFailures: 1),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Novità non disponibili'), findsOneWidget);
-    await tester.tap(find.text('Riprova'));
-    await tester.pumpAndSettle();
-    expect(find.text('Gin Nordes 3 l'), findsOneWidget);
   });
 
   testWidgets(

@@ -7,10 +7,15 @@ import 'package:beverfood_mobile/app/theme/app_palette.dart';
 ///
 /// The image is decoded at the size it's drawn rather than at full
 /// resolution, which keeps scrolling smooth. This assumes the source has the
-/// box's aspect ratio, or is square (see `unsplashImage`): its width is
+/// box's aspect ratio, or is square: its width is
 /// decoded to the box's longer side.
 class AppNetworkImage extends StatelessWidget {
   const AppNetworkImage(this.url, {super.key, this.fit = BoxFit.cover});
+
+  /// Where images come from. `main()` sets a provider that keeps them on the
+  /// device's disk (`CachedNetworkImageProvider`), so a photo seen once isn't
+  /// downloaded again; tests keep the plain [NetworkImage].
+  static ImageProvider Function(String url) provider = NetworkImage.new;
 
   final String url;
 
@@ -27,12 +32,11 @@ class AppNetworkImage extends StatelessWidget {
         final side = constraints.biggest.longestSide;
         final cacheSize = side.isFinite ? (side * pixelRatio).ceil() : null;
 
-        return Image.network(
-          url,
+        return Image(
+          image: ResizeImage.resizeIfNeeded(cacheSize, null, provider(url)),
           fit: fit,
           width: double.infinity,
           height: double.infinity,
-          cacheWidth: cacheSize,
           loadingBuilder: (context, child, progress) =>
               progress == null ? child : const _Placeholder(),
           errorBuilder: (context, error, stackTrace) =>

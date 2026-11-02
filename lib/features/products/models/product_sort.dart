@@ -1,7 +1,7 @@
-/// Orderings offered by the "Filtra e ordina" sheet on Prodotti.
+/// Orderings offered by the "Filtra e ordina" sheet on Prodotti. The first
+/// is the default.
 enum ProductSort {
-  /// Catalogue order (new arrivals first).
-  recommended('Consigliati'),
+  /// Most ordered first (the agents' ranking), then by name.
   popular('Più popolari'),
   priceAscending('Prezzo crescente'),
   priceDescending('Prezzo decrescente'),

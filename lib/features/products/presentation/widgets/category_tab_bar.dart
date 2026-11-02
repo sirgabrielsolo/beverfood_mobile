@@ -1,40 +1,80 @@
 import 'package:flutter/material.dart';
 
 import 'package:beverfood_mobile/app/theme/app_palette.dart';
-import 'package:beverfood_mobile/features/products/models/product.dart';
+import 'package:beverfood_mobile/app/theme/app_theme.dart';
+import 'package:beverfood_mobile/features/products/models/category.dart';
 
-/// Category tabs ("Tutti" first) pinned at the top while the content below
-/// scrolls. Returns a sliver. A `null` category means "Tutti".
+/// Category tabs ("Tutti" first, then the catalogue's categories) pinned at
+/// the top while the content below scrolls. Returns a sliver. A `null`
+/// category id means "Tutti".
 class CategoryTabBar extends StatefulWidget {
   const CategoryTabBar({
     super.key,
-    required this.selected,
+    required this.categories,
+    required this.selectedId,
     required this.onSelected,
   });
 
-  final ProductCategory? selected;
-  final ValueChanged<ProductCategory?> onSelected;
+  /// Empty while the catalogue loads: only "Tutti" shows.
+  final List<Category> categories;
+  final int? selectedId;
+  final ValueChanged<int?> onSelected;
 
   @override
   State<CategoryTabBar> createState() => _CategoryTabBarState();
 }
 
 class _CategoryTabBarState extends State<CategoryTabBar>
-    with SingleTickerProviderStateMixin {
-  static const _categories = [null, ...ProductCategory.values];
+    with TickerProviderStateMixin {
+  late List<int?> _ids;
+  late TabController _controller;
 
-  late final _controller = TabController(
-    length: _categories.length,
-    initialIndex: _categories.indexOf(widget.selected),
+  @override
+  void initState() {
+    super.initState();
+    _ids = _idsOf(widget.categories);
+    _controller = _newController();
+  }
+
+  static List<int?> _idsOf(List<Category> categories) => [
+    null,
+    for (final category in categories) category.id,
+  ];
+
+  int get _selectedIndex {
+    final index = _ids.indexOf(widget.selectedId);
+    return index < 0 ? 0 : index;
+  }
+
+  TabController _newController() => TabController(
+    length: _ids.length,
+    initialIndex: _selectedIndex,
     vsync: this,
   );
 
   @override
   void didUpdateWidget(CategoryTabBar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final ids = _idsOf(widget.categories);
+    if (!_sameIds(ids, _ids)) {
+      // The catalogue arrived or changed: a controller of the new length.
+      _ids = ids;
+      _controller.dispose();
+      _controller = _newController();
+      return;
+    }
     // Follows category changes made from outside, e.g. a home tile.
-    final index = _categories.indexOf(widget.selected);
-    if (index != _controller.index) _controller.animateTo(index);
+    if (_selectedIndex != _controller.index) {
+      _controller.animateTo(_selectedIndex);
+    }
+  }
+
+  static bool _sameIds(List<int?> a, List<int?> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   @override
@@ -50,7 +90,7 @@ class _CategoryTabBarState extends State<CategoryTabBar>
 
     final tabBar = TabBar(
       controller: _controller,
-      onTap: (index) => widget.onSelected(_categories[index]),
+      onTap: (index) => widget.onSelected(_ids[index]),
       isScrollable: true,
       tabAlignment: TabAlignment.start,
       // 16 from the screen edge to the first label, 22 between labels.
@@ -58,8 +98,15 @@ class _CategoryTabBarState extends State<CategoryTabBar>
       labelPadding: const EdgeInsets.symmetric(horizontal: 11),
       labelColor: palette.textPrimary,
       unselectedLabelColor: palette.textSecondary,
-      labelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+      // The app font named explicitly: TabBar replaces the inherited text
+      // style with these, so without it the tabs fall back to the system font.
+      labelStyle: const TextStyle(
+        fontFamily: AppTheme.fontFamily,
+        fontSize: 15,
+        fontWeight: FontWeight.w900,
+      ),
       unselectedLabelStyle: const TextStyle(
+        fontFamily: AppTheme.fontFamily,
         fontSize: 15,
         fontWeight: FontWeight.w700,
       ),
@@ -70,10 +117,14 @@ class _CategoryTabBarState extends State<CategoryTabBar>
       dividerColor: palette.line,
       dividerHeight: 1,
       tabs: [
-        for (final category in _categories)
+        Tab(
+          height: textScaler.scale(_TabBarHeaderDelegate.baseTabHeight),
+          text: 'Tutti',
+        ),
+        for (final category in widget.categories)
           Tab(
             height: textScaler.scale(_TabBarHeaderDelegate.baseTabHeight),
-            text: category?.label ?? 'Tutti',
+            text: category.name,
           ),
       ],
     );

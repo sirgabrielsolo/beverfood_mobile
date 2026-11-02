@@ -3,17 +3,30 @@ import 'package:go_router/go_router.dart';
 
 import 'package:beverfood_mobile/app/router.dart';
 import 'package:beverfood_mobile/features/auth/presentation/widgets/account_notice.dart';
-import 'package:beverfood_mobile/features/home/presentation/widgets/category_tiles.dart';
+import 'package:beverfood_mobile/features/home/presentation/widgets/category_grid.dart';
 import 'package:beverfood_mobile/features/home/presentation/widgets/home_header.dart';
 import 'package:beverfood_mobile/features/home/presentation/widgets/catalog_rail_section.dart';
 import 'package:beverfood_mobile/features/home/presentation/widgets/section_header.dart';
-import 'package:beverfood_mobile/features/products/data/product_repository.dart';
+import 'package:beverfood_mobile/features/products/models/category.dart';
+import 'package:beverfood_mobile/features/products/models/product_sort.dart';
+import 'package:beverfood_mobile/features/products/presentation/products_page.dart';
 import 'package:beverfood_mobile/features/promotions/presentation/widgets/promo_section.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  final _productRepository = const ProductRepository();
+  /// Prodotti with these filters, applied even if the client changed them
+  /// there since the last time.
+  static void _openProducts(
+    BuildContext context, {
+    int? categoryId,
+    ProductSort? sort,
+  }) {
+    context.go(
+      AppRoutes.productsWith(categoryId: categoryId, sort: sort),
+      extra: ApplyProductFilters(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,32 +49,31 @@ class HomePage extends StatelessWidget {
               ),
             ),
           ),
-          // From the API: the products the web app flags new, then the most
-          // ordered ones (the agents' "Più popolari", promos left out).
+          // From the catalogue: the products the web app flags new, then the
+          // most ordered ones (the agents' "Più popolari", promos left out).
           SliverToBoxAdapter(
             child: CatalogRailSection(
               title: 'Novità',
-              load: (catalog) => catalog.newProducts(),
+              products: (catalog) => catalog.newArrivals,
               errorMessage: 'Novità non disponibili',
               showNewBadge: true,
-              onSeeAll: () => context.go(AppRoutes.products),
+              onSeeAll: () =>
+                  _openProducts(context, categoryId: Category.newId),
             ),
           ),
           SliverToBoxAdapter(
             child: CatalogRailSection(
               title: 'Più popolari',
-              load: (catalog) => catalog.popularProducts(),
+              products: (catalog) => catalog.popular(),
               errorMessage: 'Più popolari non disponibili',
-              onSeeAll: () => context.go(AppRoutes.products),
+              // Tutti, most ordered first.
+              onSeeAll: () => _openProducts(context, sort: ProductSort.popular),
             ),
           ),
           const SliverToBoxAdapter(child: SectionHeader(title: 'Categorie')),
-          SliverToBoxAdapter(
-            child: CategoryTiles(
-              imageUrlFor: _productRepository.categoryImageUrl,
-              onSelected: (category) =>
-                  context.go(AppRoutes.productsWith(category: category)),
-            ),
+          CategoryGrid(
+            onSelected: (category) =>
+                _openProducts(context, categoryId: category.id),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],

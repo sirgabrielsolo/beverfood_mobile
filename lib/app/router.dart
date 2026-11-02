@@ -12,7 +12,7 @@ import 'package:beverfood_mobile/features/auth/presentation/splash_page.dart';
 import 'package:beverfood_mobile/features/auth/presentation/welcome_page.dart';
 import 'package:beverfood_mobile/features/cart/presentation/cart_page.dart';
 import 'package:beverfood_mobile/features/home/presentation/home_page.dart';
-import 'package:beverfood_mobile/features/products/models/product.dart';
+import 'package:beverfood_mobile/features/products/models/product_sort.dart';
 import 'package:beverfood_mobile/features/products/presentation/products_page.dart';
 import 'package:beverfood_mobile/features/profile/presentation/profile_page.dart';
 import 'package:beverfood_mobile/features/promotions/models/promo.dart';
@@ -48,13 +48,21 @@ abstract final class AppRoutes {
   /// A promo's page. Push it with the [Promo] as `extra` to skip reloading it.
   static String promo(int id) => '/promo/$id';
 
-  /// Location of the products page, optionally pre-filtered.
-  static String productsWith({String? query, ProductCategory? category}) {
+  /// Location of the products page, optionally pre-filtered: a search, a
+  /// category id (`Category.id`; none is "Tutti") and a sort (none is the
+  /// default, Più popolari). Navigate to it with `extra: ApplyProductFilters()`
+  /// so the filters apply even if they equal the last ones asked for.
+  static String productsWith({
+    String? query,
+    int? categoryId,
+    ProductSort? sort,
+  }) {
     return Uri(
       path: products,
       queryParameters: {
         if (query != null && query.isNotEmpty) 'q': query,
-        if (category != null) 'category': category.name,
+        if (categoryId != null) 'category': '$categoryId',
+        if (sort != null) 'sort': sort.name,
       },
     ).toString();
   }
@@ -156,13 +164,15 @@ GoRouter createRouter(AuthController auth) {
                 path: AppRoutes.products,
                 builder: (context, state) {
                   final params = state.uri.queryParameters;
+                  final extra = state.extra;
                   return ProductsPage(
                     initialQuery: params['q'] ?? '',
-                    initialCategory: ProductCategory.values
-                        .asNameMap()[params['category']],
-                    focusSearch: state.extra is FocusProductSearch
-                        ? state.extra as FocusProductSearch
-                        : null,
+                    initialCategoryId: int.tryParse(params['category'] ?? ''),
+                    initialSort:
+                        ProductSort.values.asNameMap()[params['sort']] ??
+                        ProductSort.values.first,
+                    focusSearch: extra is FocusProductSearch ? extra : null,
+                    applyFilters: extra is ApplyProductFilters ? extra : null,
                   );
                 },
               ),

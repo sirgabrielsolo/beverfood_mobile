@@ -48,7 +48,7 @@ class _BeverfoodAppState extends State<BeverfoodApp>
   final _cart = CartController();
   final _favourites = FavouritesController();
   late final _promos = PromoRepository(_api);
-  late final _catalog = CatalogRepository(_api);
+  late final _catalog = CatalogController(CatalogRepository(_api));
 
   @override
   void initState() {
@@ -59,8 +59,17 @@ class _BeverfoodAppState extends State<BeverfoodApp>
   }
 
   void _onAuthChanged() {
-    // Another account may sign in next: it starts with an empty cart.
-    if (_auth.status == AuthStatus.signedOut) _cart.clear();
+    switch (_auth.status) {
+      case AuthStatus.signedIn:
+        // Every catalogue request needs the token: loaded once signed in.
+        if (_catalog.catalog == null) _catalog.load();
+      case AuthStatus.signedOut:
+        // Another account may sign in next: it starts with an empty cart.
+        _cart.clear();
+        _catalog.clear();
+      case AuthStatus.loading || AuthStatus.offline:
+        break;
+    }
   }
 
   @override
@@ -69,6 +78,7 @@ class _BeverfoodAppState extends State<BeverfoodApp>
     if (state == AppLifecycleState.resumed &&
         _auth.status == AuthStatus.signedIn) {
       _auth.refresh();
+      _catalog.refreshIfStale();
     }
   }
 
@@ -80,6 +90,7 @@ class _BeverfoodAppState extends State<BeverfoodApp>
     _router.dispose();
     _cart.dispose();
     _favourites.dispose();
+    _catalog.dispose();
     super.dispose();
   }
 
@@ -96,7 +107,7 @@ class _BeverfoodAppState extends State<BeverfoodApp>
             child: PromoRepositoryScope(
               repository: _promos,
               child: CatalogScope(
-                repository: _catalog,
+                controller: _catalog,
                 child: MaterialApp.router(
                   title: 'Beverfood',
                   debugShowCheckedModeBanner: false,
