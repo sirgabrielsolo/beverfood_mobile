@@ -13,9 +13,11 @@ as well, so they aren't proposed again.
       `beverfood_ops/assets/png_upload/promo/` to Cloudinary (`<id>.png` replaces each promo's product image,
       `promo_banner_<id>.png` is new), then push beverfood_web (`api.py`, `promos.py`, `app.py`) so production
       serves `/api/v1/promos`. Until then the app's banners show the "image missing" placeholder.
-- [ ] **Client accounts.** The API exists in beverfood_web (uncommitted, see the log below). Next: the **app screens**
-      (A1, B2, C2, D1+D2, E, as chosen), sending the token, then the **admin panel** (P2) with the approval page and
-      the manager's split view. Then push notifications (Firebase) and the SMS/email provider.
+- [ ] **Admin panel (P2)** in beverfood_web, with the approval page (manual "Partita IVA verificata" checkbox + client
+      ID before "Approva") and the manager's choice at login: agents' orders (light) or Clienti app (dark). Until then a
+      profile can only be approved by hand in the database.
+- [ ] **Approval notice:** push notification (Firebase) + email to the client.
+- [ ] **Cart page + orders from the app** (mix of promos into the order notes; test account orders to admin@beverfoodsrl.it).
       Privacy notice draft (the user will add the details): https://claude.ai/artifact/1B9653a9Ymaz1cbmbktART
 - [ ] **User to set up:** an SMS (+ later WhatsApp) verification provider account (Twilio Verify recommended), an
       email sender on `beverfoodsrl.it` (DNS access needed; Brevo suggested), Meta WhatsApp Business verification.
@@ -357,4 +359,54 @@ as well, so they aren't proposed again.
 - **Address data:** OSM house numbers rarely carry the comune (79% don't), so streets come from each comune's
   boundary. Ingria, Massello, Pramollo and Ribordone have no named streets; the app offers "La via non è in elenco".
 - **Mistake:** the first Overpass request carried the user's email in its User-Agent; later requests carry none.
+
+### 2026-11-02 (late night)
+
+**Done: app sign-in (phase 6)**
+- **Sign-in screens:**
+  - Start screen.
+  - **A1** welcome: the logo, large and in its own red.
+  - Phone or email entry, then **B2** code entry: one wide field, resend after 45 s, "Ricevilo su WhatsApp".
+  - With no account the router allows only these.
+- **C2** profile completion in three steps:
+  - Verifying the phone (if signed up by email) or adding an email.
+  - P.IVA check digit tested before sending.
+  - Address with comune search, street search, CAP filled in, "La via non è in elenco", "© OpenStreetMap".
+- **D1/D2:** the notice on Home and in the cart, red while it's up to the client, yellow "Profilo in verifica".
+- **E Profilo:** status card, "Account" and "Aspetto" sections, Esci, and Elimina account (with a confirmation;
+  disabled for the test account). Address changes after approval go through `/account/address`.
+- **Plumbing:** `AuthController` + `SecureTokenStore` (flutter_secure_storage); `ApiClient` sends the token and signs
+  out on 401; the account reloads on resume; the cart empties on sign-out.
+- **Palette:** new `warning`/`onWarning` and `success`/`onSuccess` tokens.
+- **Tests:** 22 widget tests + 8 unit tests. New ones cover the sign-in with a wrong then the right code, the 3-step
+  profile with the exact payload sent, the pending notices, and the test account.
+- **Checks:** the screens were rendered and looked over (light and dark), and an Android debug APK builds.
+
+**Fixed**
+- **Android debug builds** failed to compile since the previous push: the comment added to
+  `android/app/src/debug/AndroidManifest.xml` contained `--`, which XML forbids.
+- **The profile page** didn't close after sending: the step-by-step back button blocked it.
+
+**Notes**
+- **Headless Chromium** stalls on the web build's start screen; the app itself reaches /welcome. For visual checks,
+  render screens through the Flutter test renderer with the real fonts loaded.
+- **Not done yet:** push notifications for approval, real SMS/email delivery, the admin approval page.
+
+### 2026-11-02 (tweaks)
+
+**Done** (from the user's test)
+- **Profilo card:**
+  - No "ACCOUNT DI PROVA" badge.
+  - The status badge ("APPROVATO") sits at the far right of the name's line, so the card is shorter.
+  - The client number moved to the line below ("… · Cliente 40217"), so the name isn't cut off.
+  - No line under the greyed "Elimina account".
+- **Test account:** its company is now "Beverfood srl testing account". beverfood_web resets the test account's data at
+  every test sign-in, so production updates on the next deploy without a database change.
+- **Promo page:** tapping the number in a stepper opens a scroll wheel (`CupertinoPicker`, like iPhone's) with every
+  allowed quantity, then "Conferma". Its numbers set the app font explicitly (the wheel defaults to Apple's system font).
+  Covered by a new widget test (23 widget tests).
+
+**Mistake**
+- Re-running the web API checks wiped the local `app_*` tables, including any accounts the user may have created
+  while testing locally. Production wasn't affected. Next time, run those checks on a separate database.
 
