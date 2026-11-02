@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:beverfood_mobile/app/theme/app_palette.dart';
 import 'package:beverfood_mobile/app/theme/app_radii.dart';
+import 'package:beverfood_mobile/core/widgets/load_error_row.dart';
 import 'package:beverfood_mobile/features/promotions/data/promo_repository.dart';
 import 'package:beverfood_mobile/features/promotions/models/promo.dart';
 import 'package:beverfood_mobile/features/promotions/presentation/widgets/promo_banner.dart';
@@ -43,7 +44,8 @@ class _PromoSectionState extends State<PromoSection> {
       future: _promos,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return _Unavailable(
+          return LoadErrorRow(
+            message: 'Promozioni non disponibili',
             onRetry: () => setState(() {
               _promos = _load();
             }),
@@ -79,50 +81,6 @@ class _Loading extends StatelessWidget {
         clipBehavior: Clip.none,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [box, const SizedBox(width: 12), box],
-      ),
-    );
-  }
-}
-
-class _Unavailable extends StatelessWidget {
-  const _Unavailable({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.palette;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Material(
-        color: palette.surface,
-        borderRadius: AppRadii.card,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 6, 6),
-          child: Row(
-            children: [
-              Icon(Icons.cloud_off_outlined, color: palette.textSecondary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Promozioni non disponibili',
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: onRetry,
-                style: TextButton.styleFrom(
-                  foregroundColor: palette.brandText,
-                  textStyle: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                child: const Text('Riprova'),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

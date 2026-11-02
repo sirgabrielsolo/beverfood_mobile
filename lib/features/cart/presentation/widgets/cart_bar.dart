@@ -3,13 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:beverfood_mobile/app/theme/app_colors.dart';
 import 'package:beverfood_mobile/app/theme/app_radii.dart';
 import 'package:beverfood_mobile/core/formatting/price_format.dart';
+import 'package:beverfood_mobile/core/widgets/net_price_text.dart';
 
-/// "Vai al carrello" bar that floats above the bottom navigation.
-///
-/// Not shown yet: it's the agreed design for when the cart is built. Show it
-/// only while the cart has items (slide in/out with `AnimatedSlide` +
-/// `AnimatedOpacity`), 16 from the sides and 12 above the navigation bar,
-/// and give scrolling content enough bottom padding to clear it.
+/// "Vai al carrello" bar above the bottom navigation, 16 from the sides and
+/// 12 above the bar. `AppShell` shows it while the cart has items, except on
+/// the Carrello tab. The total is net of IVA, like every price.
 class CartBar extends StatelessWidget {
   const CartBar({
     super.key,
@@ -28,16 +26,17 @@ class CartBar extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: 'Vai al carrello, $items, totale ${formatPrice(total)}',
+      label: 'Vai al carrello, $items, totale ${formatPrice(total)} più IVA',
       excludeSemantics: true,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: AppRadii.card,
           boxShadow: [
+            // Small enough to stay inside the 12 pt above the navigation bar.
             BoxShadow(
-              color: AppColors.brand.withValues(alpha: 0.35),
-              offset: const Offset(0, 8),
-              blurRadius: 24,
+              color: AppColors.brand.withValues(alpha: 0.3),
+              offset: const Offset(0, 3),
+              blurRadius: 8,
             ),
           ],
         ),
@@ -69,24 +68,46 @@ class CartBar extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
+                      // The count on its own line, so the total "+ IVA" fits.
                       Expanded(
-                        child: Text(
-                          'Vai al carrello · $items',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Vai al carrello',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                height: 1.2,
+                              ),
+                            ),
+                            Text(
+                              items,
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                height: 1.2,
+                                color: AppColors.onBrand.withValues(
+                                  alpha: 0.85,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Text(
-                        formatPrice(total),
+                      NetPriceText(
+                        total,
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
+                          color: AppColors.onBrand,
                         ),
+                        suffixColor: AppColors.onBrand.withValues(alpha: 0.85),
                       ),
                     ],
                   ),

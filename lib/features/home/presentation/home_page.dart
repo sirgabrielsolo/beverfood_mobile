@@ -5,6 +5,7 @@ import 'package:beverfood_mobile/app/router.dart';
 import 'package:beverfood_mobile/features/auth/presentation/widgets/account_notice.dart';
 import 'package:beverfood_mobile/features/home/presentation/widgets/category_tiles.dart';
 import 'package:beverfood_mobile/features/home/presentation/widgets/home_header.dart';
+import 'package:beverfood_mobile/features/home/presentation/widgets/new_arrivals_section.dart';
 import 'package:beverfood_mobile/features/home/presentation/widgets/product_rail.dart';
 import 'package:beverfood_mobile/features/home/presentation/widgets/section_header.dart';
 import 'package:beverfood_mobile/features/products/data/product_repository.dart';
@@ -36,16 +37,10 @@ class HomePage extends StatelessWidget {
               ),
             ),
           ),
+          // From the API: the products the web app flags new.
           SliverToBoxAdapter(
-            child: SectionHeader(
-              title: 'Novità',
+            child: NewArrivalsSection(
               onSeeAll: () => context.go(AppRoutes.products),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: ProductRail(
-              products: _productRepository.getNewArrivals(),
-              showNewBadge: true,
             ),
           ),
           SliverToBoxAdapter(

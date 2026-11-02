@@ -44,7 +44,12 @@ const _units = {
 };
 
 /// The ERP's abbreviations for containers.
-const _containers = {'LAT': 'lattina', 'BT': 'bottiglia', 'VAP': 'vetro'};
+const _containers = {
+  'LAT': 'lattina',
+  'LATT': 'lattina',
+  'BT': 'bottiglia',
+  'VAP': 'vetro',
+};
 
 const _accented = {'A': 'à', 'E': 'è', 'I': 'ì', 'O': 'ò', 'U': 'ù'};
 

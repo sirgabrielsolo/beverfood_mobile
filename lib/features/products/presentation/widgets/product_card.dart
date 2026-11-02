@@ -80,7 +80,20 @@ class ProductCard extends StatelessWidget {
                 children: [
                   ClipRRect(
                     borderRadius: AppRadii.image,
-                    child: AppNetworkImage(product.imageUrl),
+                    // Database products are transparent cut-outs: whole, on a
+                    // light backdrop (dark bottles vanish on a dark card).
+                    child: product.isCutout
+                        ? ColoredBox(
+                            color: context.palette.cutoutBackground,
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: AppNetworkImage(
+                                product.imageUrl,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          )
+                        : AppNetworkImage(product.imageUrl),
                   ),
                   if (showNewBadge)
                     const Positioned(top: 6, left: 6, child: _NewBadge()),

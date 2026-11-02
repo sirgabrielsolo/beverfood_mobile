@@ -9,6 +9,7 @@ import 'package:beverfood_mobile/features/auth/data/auth_controller.dart';
 import 'package:beverfood_mobile/features/auth/data/auth_repository.dart';
 import 'package:beverfood_mobile/features/auth/data/token_store.dart';
 import 'package:beverfood_mobile/features/cart/data/cart_controller.dart';
+import 'package:beverfood_mobile/features/products/data/catalog_repository.dart';
 import 'package:beverfood_mobile/features/products/data/favourites_controller.dart';
 import 'package:beverfood_mobile/features/promotions/data/promo_repository.dart';
 
@@ -47,6 +48,7 @@ class _BeverfoodAppState extends State<BeverfoodApp>
   final _cart = CartController();
   final _favourites = FavouritesController();
   late final _promos = PromoRepository(_api);
+  late final _catalog = CatalogRepository(_api);
 
   @override
   void initState() {
@@ -93,23 +95,26 @@ class _BeverfoodAppState extends State<BeverfoodApp>
             controller: _favourites,
             child: PromoRepositoryScope(
               repository: _promos,
-              child: MaterialApp.router(
-                title: 'Beverfood',
-                debugShowCheckedModeBanner: false,
-                theme: AppTheme.light,
-                routerConfig: _router,
-                // The theme is applied here, around the router, rather than with
-                // `themeMode`: changing that rebuilds the MaterialApp and with it
-                // the router and every page. Here the router is the same child,
-                // so only the widgets that read the theme rebuild. It also
-                // switches instantly; the default 200 ms interpolation rebuilds
-                // them on every frame, which janks on a real device.
-                builder: (context, router) => ListenableBuilder(
-                  listenable: widget.themeModeController,
-                  child: router,
-                  builder: (context, router) => Theme(
-                    data: _isDark(context) ? AppTheme.dark : AppTheme.light,
-                    child: router!,
+              child: CatalogScope(
+                repository: _catalog,
+                child: MaterialApp.router(
+                  title: 'Beverfood',
+                  debugShowCheckedModeBanner: false,
+                  theme: AppTheme.light,
+                  routerConfig: _router,
+                  // The theme is applied here, around the router, rather than with
+                  // `themeMode`: changing that rebuilds the MaterialApp and with it
+                  // the router and every page. Here the router is the same child,
+                  // so only the widgets that read the theme rebuild. It also
+                  // switches instantly; the default 200 ms interpolation rebuilds
+                  // them on every frame, which janks on a real device.
+                  builder: (context, router) => ListenableBuilder(
+                    listenable: widget.themeModeController,
+                    child: router,
+                    builder: (context, router) => Theme(
+                      data: _isDark(context) ? AppTheme.dark : AppTheme.light,
+                      child: router!,
+                    ),
                   ),
                 ),
               ),

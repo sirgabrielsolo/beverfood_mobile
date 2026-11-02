@@ -24,7 +24,7 @@ class ProductRepository {
       final matchesQuery =
           normalizedQuery.isEmpty ||
           p.name.toLowerCase().contains(normalizedQuery) ||
-          p.category.label.toLowerCase().contains(normalizedQuery);
+          (p.category?.label.toLowerCase() ?? '').contains(normalizedQuery);
       return matchesCategory && matchesQuery;
     }).toList();
 

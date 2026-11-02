@@ -148,22 +148,26 @@ class _AccountCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // The status closes the name's line, keeping the card short.
+            // A small status badge at the top right; the name wraps rather
+            // than being cut.
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Text(
                     account.fullName ?? 'Il tuo account',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 19,
                       fontWeight: FontWeight.w900,
+                      height: 1.25,
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                _Pill(status, background, foreground),
+                const SizedBox(width: 8),
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: _Pill(status, background, foreground),
+                ),
               ],
             ),
             if (company.isNotEmpty)
@@ -197,13 +201,13 @@ class _Pill extends StatelessWidget {
         borderRadius: AppRadii.badge,
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
         child: Text(
           text,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 9,
             fontWeight: FontWeight.w900,
-            letterSpacing: 0.5,
+            letterSpacing: 0.4,
             color: foreground,
           ),
         ),

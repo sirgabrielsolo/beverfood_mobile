@@ -12,6 +12,7 @@ import 'package:beverfood_mobile/app/theme/app_palette.dart';
 import 'package:beverfood_mobile/app/theme/theme_mode_controller.dart';
 import 'package:beverfood_mobile/core/network/api_client.dart';
 import 'package:beverfood_mobile/features/auth/data/token_store.dart';
+import 'package:beverfood_mobile/features/products/presentation/products_page.dart';
 import 'package:beverfood_mobile/features/products/presentation/widgets/product_card.dart';
 
 Future<ThemeModeController> _themeModeController() async {
@@ -68,15 +69,44 @@ Map<String, Object?> _accountJson({
   'address': null,
 };
 
+/// Two products flagged new, named the way the ERP writes them.
+const _newProductsJson = [
+  {
+    'id': 73284,
+    'name': 'GIN NORDES 3 LT',
+    'price': 99.99,
+    'iva': 22.0,
+    'image_url': 'https://example.com/73284.png',
+    'is_new': true,
+    'category': 'GIN',
+  },
+  {
+    'id': 51725,
+    'name': 'PEPSI ZERO GINGERBREAD LATT 330 ML 24 PZ',
+    'price': 12.52,
+    'iva': 22.0,
+    'image_url': 'https://example.com/51725.png',
+    'is_new': true,
+    'category': 'BIBITE',
+  },
+];
+
 /// beverfood_web's /api/v1, faked: one account ([account]), the promos (the
 /// first [promoFailures] requests fail), the sign-in code `123456`, two
 /// comuni and one Torino street. Records the profile sent.
 class _FakeServer {
-  _FakeServer({Map<String, Object?>? account, this.promoFailures = 0})
-    : account = account ?? _accountJson();
+  _FakeServer({
+    Map<String, Object?>? account,
+    this.promoFailures = 0,
+    this.newFailures = 0,
+    List<Map<String, Object?>>? newProducts,
+  }) : account = account ?? _accountJson(),
+       newProducts = newProducts ?? _newProductsJson;
 
   Map<String, Object?> account;
   int promoFailures;
+  int newFailures;
+  List<Map<String, Object?>> newProducts;
   Map<String, Object?>? sentProfile;
 
   late final client = MockClient((request) async {
@@ -113,6 +143,9 @@ class _FakeServer {
       case ('GET', '/api/v1/promos'):
         if (promoFailures-- > 0) return http.Response('', 503);
         return _json(_promosJson);
+      case ('GET', '/api/v1/products/new'):
+        if (newFailures-- > 0) return http.Response('', 503);
+        return _json({'products': newProducts});
       case ('POST', '/api/v1/auth/logout'):
         return http.Response('', 204);
       case ('DELETE', '/api/v1/me'):
@@ -376,14 +409,20 @@ void main() {
   testWidgets('the cart quantity is shared between Home and Prodotti', (
     tester,
   ) async {
-    await _pumpApp(tester, await _themeModeController());
+    // No Novità: the first card on Home is then a sample product, which
+    // Prodotti also lists.
+    await _pumpApp(
+      tester,
+      await _themeModeController(),
+      server: _FakeServer(newProducts: const []),
+    );
     await tester.pumpAndSettle();
 
     // Bring the "Novità" cards' buttons out from behind the navigation bar.
     await tester.drag(_pageScrollable(), const Offset(0, -200));
     await tester.pumpAndSettle();
 
-    // The first "Novità" card.
+    // The first "Più popolari" card: Rosé Spumante Brut.
     await tester.tap(find.bySemanticsLabel('Aggiungi al carrello').first);
     await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel('Aggiungi uno').first);
@@ -392,19 +431,43 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.grid_view_outlined));
     await tester.pumpAndSettle();
-    await tester.drag(_pageScrollable(), const Offset(0, -300));
+    // Search Prodotti for it: whatever its place in the grid, it then comes
+    // first. Only within Prodotti: Home stays alive behind it with its own "2".
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(ProductsPage),
+        matching: find.byType(TextField),
+      ),
+      'Rosé Spumante',
+    );
     await tester.pumpAndSettle();
-    expect(find.text('2'), findsOneWidget);
+    final quantity = find.descendant(
+      of: find.byType(ProductsPage),
+      matching: find.text('2'),
+    );
+    expect(quantity, findsOneWidget);
 
     // At quantity 1 the minus becomes a bin, which takes the product out of
     // the cart and brings back the "Aggiungi" button.
-    await tester.tap(find.bySemanticsLabel('Rimuovi uno').first);
+    Finder inProdotti(Finder finder) =>
+        find.descendant(of: find.byType(ProductsPage), matching: finder);
+    // Lift the card's buttons out from behind the navigation and cart bars.
+    await tester.ensureVisible(
+      inProdotti(find.bySemanticsLabel('Rimuovi uno')),
+    );
     await tester.pumpAndSettle();
-    expect(find.bySemanticsLabel('Rimuovi uno'), findsNothing);
-    await tester.tap(find.bySemanticsLabel('Rimuovi dal carrello').first);
+    // (Home's card, off screen, finishes its own button animation only when
+    // Home is opened again: its tickers are paused.)
+    await tester.tap(inProdotti(find.bySemanticsLabel('Rimuovi uno')));
     await tester.pumpAndSettle();
-    expect(find.bySemanticsLabel('Rimuovi dal carrello'), findsNothing);
-    expect(find.text('Aggiungi'), findsWidgets);
+    expect(inProdotti(find.bySemanticsLabel('Rimuovi uno')), findsNothing);
+    await tester.tap(inProdotti(find.bySemanticsLabel('Rimuovi dal carrello')));
+    await tester.pumpAndSettle();
+    expect(
+      inProdotti(find.bySemanticsLabel('Rimuovi dal carrello')),
+      findsNothing,
+    );
+    expect(inProdotti(find.text('Aggiungi')), findsWidgets);
   });
 
   testWidgets('Prodotti can be sorted by price', (tester) async {
@@ -727,4 +790,56 @@ void main() {
     expect(find.text('2 / 2'), findsOneWidget);
     expect(find.text('Scegli ancora 1 in omaggio'), findsOneWidget);
   });
+
+  testWidgets('Novità come from the database, with readable names', (
+    tester,
+  ) async {
+    await _pumpApp(tester, await _themeModeController());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Novità'), findsOneWidget);
+    expect(find.text('Gin Nordes 3 l'), findsOneWidget);
+    expect(
+      find.text('Pepsi Zero Gingerbread lattina 330 ml · 24 pz'),
+      findsOneWidget,
+    );
+    expect(find.text('NUOVO'), findsNWidgets(2));
+  });
+
+  testWidgets('Novità that fail to load can be retried', (tester) async {
+    await _pumpApp(
+      tester,
+      await _themeModeController(),
+      server: _FakeServer(newFailures: 1),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Novità non disponibili'), findsOneWidget);
+    await tester.tap(find.text('Riprova'));
+    await tester.pumpAndSettle();
+    expect(find.text('Gin Nordes 3 l'), findsOneWidget);
+  });
+
+  testWidgets(
+    'the cart bar appears with the first product and opens the cart',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await _pumpApp(tester, await _themeModeController());
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Vai al carrello'), findsNothing);
+
+      // The gin, first in Novità.
+      await tester.tap(find.bySemanticsLabel('Aggiungi al carrello').first);
+      await tester.pumpAndSettle();
+      const bar = 'Vai al carrello, 1 articolo, totale 99,99 € più IVA';
+      expect(find.bySemanticsLabel(bar), findsOneWidget);
+
+      await tester.tap(find.bySemanticsLabel(bar));
+      await tester.pumpAndSettle();
+      // On the cart tab the bar steps aside.
+      expect(find.text('Carrello'), findsWidgets);
+      expect(find.bySemanticsLabel(bar), findsNothing);
+    },
+  );
 }

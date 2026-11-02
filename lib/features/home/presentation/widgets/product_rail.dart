@@ -14,12 +14,12 @@ class ProductRail extends StatelessWidget {
   final List<Product> products;
   final bool showNewBadge;
 
-  static const _cardWidth = 140.0;
+  static const cardWidth = 140.0;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: _cardWidth + ProductCard.textHeight(context),
+      height: cardWidth + ProductCard.textHeight(context),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         // Spans the full screen width, so there's nothing to clip.
@@ -28,7 +28,7 @@ class ProductRail extends StatelessWidget {
         itemCount: products.length,
         separatorBuilder: (context, index) => const SizedBox(width: 12),
         itemBuilder: (context, index) => SizedBox(
-          width: _cardWidth,
+          width: cardWidth,
           child: ProductCard(
             product: products[index],
             showNewBadge: showNewBadge,
