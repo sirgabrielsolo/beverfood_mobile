@@ -9,49 +9,38 @@ as well, so they aren't proposed again.
 
 ## Next up
 
-- [ ] **Upload the promo images and deploy the API** (user). Upload the 14 PNGs in
-      `beverfood_ops/assets/png_upload/promo/` to Cloudinary (`<id>.png` replaces each promo's product image,
-      `promo_banner_<id>.png` is new), then push beverfood_web (`api.py`, `promos.py`, `app.py`) so production
-      serves `/api/v1/promos`. Until then the app's banners show the "image missing" placeholder.
-- [ ] **Admin panel (P2)** in beverfood_web, with the approval page (manual "Partita IVA verificata" checkbox + client
-      ID before "Approva") and the manager's choice at login: agents' orders (light) or Clienti app (dark). Until then a
-      profile can only be approved by hand in the database.
-- [ ] **Approval notice:** push notification (Firebase) + email to the client.
-- [ ] **Cart page + orders from the app** (mix of promos into the order notes; test account orders to admin@beverfoodsrl.it).
-      Privacy notice draft (the user will add the details): https://claude.ai/artifact/1B9653a9Ymaz1cbmbktART
-- [ ] **User to set up:** an SMS (+ later WhatsApp) verification provider account (Twilio Verify recommended), an
-      email sender on `beverfoodsrl.it` (DNS access needed; Brevo suggested), Meta WhatsApp Business verification.
-- [ ] **Deploying beverfood_web:** `/api/v1` now requires a client login, so it can go to production. On Render set
-      `APP_TEST_CODE` (the test account's code) and leave `OTP_SENDER` unset until a provider exists.
-- [ ] **Checkout notes.** When the order is built: the client can write notes; the manager sees them followed by
-      each promo's `PromoSelection.orderNote`. The client sees the mix in the cart, not the note.
-- [ ] **Cart page** must list promo lines (with their mix) next to products; `CartController` already holds them.
-- [ ] **Novità from the API**, then **Più popolari**, then the rest of the catalogue (the user's order). Product
-      names in the DB are agent-style upper case ("LILIA NATURALE 500 ML 24 PZ"): decide how the app shows them.
-- [ ] **Product detail page.** Product cards aren't tappable yet.
-- [ ] **Cart.** `CartController` already holds quantities in memory and the cards' add button / stepper use it.
-      Still to do: persistence, the cart page (a placeholder today), the cart-tab count badge, and showing
-      `CartBar` ("Vai al carrello · N articoli", the agreed design) above the nav while the cart isn't empty.
-      Scrolling pages then need about 170 pt of bottom padding so the last row clears the bar.
-- [ ] **Favourites.** The heart on cards toggles in memory only (`FavouritesController`). Persist it and decide
-      where the list is shown.
-- [ ] **Profile.** Login, orders and addresses. Today the page only has the theme settings.
-- [ ] **Backend.** Promos come from beverfood_web's API; `ProductRepository` is still in memory (see above).
-      Decide whether `/api/v1` stays public (today: catalogue only, no auth) once client login exists.
-- [ ] **Images.** Images are now decoded at display size. Still to do: persistent disk caching and precaching,
-      for the slower first scroll while images download and decode. On the phone, Home's first pass had raster
-      p90 9–18 ms depending on the run, against about 7 ms once the images were cached.
-- [ ] **Performance on the phone.** Check the first scroll of each page (image download and decode) on the CPH2399
-      after today's fixes. If the theme switch still feels slow, the `NavigationBar` is the next cost to cut.
-- [ ] **Search.** Matching is only on name and category label, so "birra" doesn't find "Fusto IPA".
-      Consider synonyms or tags.
-- [ ] **Branding before release.**
-  - Android app label is still `beverfood_mobile` and `applicationId` is `com.example.beverfood_mobile`.
-  - Launcher icons (Android/iOS) and the web manifest icons (`Icon-192/512`) are still Flutter defaults.
-- [ ] **Open asset questions.**
-  - On Home the logo is tinted white in code (`Image.asset(color: …)`), so its transparent lettering shows the red header.
-  - `assets/images/placeholders/no_image.png` isn't bundled because it's a light image.
-    Decide whether to use it (it would need a dark variant).
+In order. "(user)" marks what only the user can do.
+
+1. [ ] **(user) Deploy and upload.**
+   - Push beverfood_web: admin panel, Clienti app, manager areas.
+   - Upload the 14 promo PNGs in `beverfood_ops/assets/png_upload/promo/` to Cloudinary, if not done yet.
+2. [ ] **Catalogue from the API.** ~~Novità~~ (done), then Più popolari, then all products (the user's order). Every product
+       call needs the client's token. Decide how the agent-style names show ("LILIA NATURALE 500 ML 24 PZ";
+       `splitProductName` is the stopgap). It also replaces the in-memory `ProductRepository`, and with it the
+       Unsplash images and categories.
+3. [ ] **Cart page and orders from the app.**
+   - The cart lists products and promo lines (with their mix), and `CartBar` ("Vai al carrello") shows while it isn't
+     empty.
+   - Checkout writes an order through a new API endpoint, using the client's notes plus each promo's
+     `PromoSelection.orderNote`.
+   - Orders appear in the manager's Clienti app area, with the same CSV as the agents' orders.
+   - Test-account orders go to the web user admin@beverfoodsrl.it.
+4. [ ] **Approval notice** to the client: a push notification (Firebase) and an email.
+5. [ ] **(user) Providers:** SMS (Twilio Verify recommended, WhatsApp later after Meta's business verification), and
+       email on `beverfoodsrl.it` (DNS access; Brevo suggested). Then connect them in `client_auth.send_code`. Until
+       then only the test account can sign in on production.
+6. [ ] **(user) Privacy notice:** fill in Beverfood's details on https://claude.ai/artifact/1B9653a9Ymaz1cbmbktART and
+       have it reviewed. It's needed before the stores.
+7. [ ] **Product detail page** (cards aren't tappable) and **favourites** (in memory only: persist them, decide where the
+       list is).
+8. [ ] **Release preparation:**
+   - App label and `applicationId` (still `com.example.beverfood_mobile`).
+   - Launcher and web icons.
+   - Store listings, with the test account as the review account.
+   - Image disk caching (slower first scroll).
+   - A phone performance pass.
+   - Search synonyms ("birra" doesn't find "Fusto IPA").
+   - Open asset questions: the white-tinted Home logo, and `no_image.png` (no dark variant).
 
 ## Log
 
@@ -409,4 +398,51 @@ as well, so they aren't proposed again.
 **Mistake**
 - Re-running the web API checks wiped the local `app_*` tables, including any accounts the user may have created
   while testing locally. Production wasn't affected. Next time, run those checks on a separate database.
+
+### 2026-11-02 (admin panel)
+
+**Done (beverfood_web)**
+- **Admin panel P2:**
+  - A sidebar with Clienti app, Utenti, Importa CSV, Immagini mancanti and Impostazioni.
+  - `/admin` opens Clienti app.
+  - The CSV import moved off the agents' catalogue toolbar to Admin Panel → Importa CSV; dark mode moved to
+    Impostazioni.
+- **Clienti app (`app_clients.py`):**
+  - Status chips, live search, and a page per client.
+  - **Approva** needs the "Partita IVA verificata" tick and the ERP id. The id is checked live against the agents'
+    clients, and a match only warns, the text ending at the address.
+  - **Rifiuta… / Sospendi…** need a reason (the app shows it); **Riattiva** undoes a suspension. The test account is
+    protected.
+- **Managers:**
+  - After login they choose **Ordini agenti** (light) or **Clienti app** (dark, without the sidebar).
+  - A top-bar switch moves between them, and the count of waiting requests shows in the top bar.
+- **Checks:** 37 end-to-end checks run against a **copy** of the local tables in a temporary `scratch` schema (the
+  local role can't create databases), then removed. Pages were screenshotted in a browser; that caught the manager's
+  Clienti app rendering empty (wrong layout), now fixed.
+
+**Decisions**
+- **Approve only `pending` requests.** A rejected client resends from the app (it becomes pending again); a suspended
+  one uses Riattiva.
+- **The client ID is warned about, never blocked,** as in the agents' "Nuovo cliente" flow.
+- **No automatic VIES check** (the user verifies by hand); a VIES link sits next to the box.
+
+### 2026-11-02 (Novità and cart bar)
+
+**Done**
+- **Novità from the database:**
+  - beverfood_web has a new `GET /api/v1/products/new` (login required): the products flagged new, newest first. That's
+    17 locally, all added on 1 November (Nordes gin, ODK syrups, Fabbri…).
+  - In the app, `CatalogRepository` and `NewArrivalsSection`: placeholders while loading, retry on failure, and the
+    section is hidden if nothing is new. Cut-out photos are drawn whole on the light backdrop. Names go through
+    `splitProductName` ("GIN NORDES 3 LT" → "Gin Nordes 3 l"; `LATT` now reads "lattina").
+- **"Vai al carrello" bar:** shown above the navigation bar while the cart has items (not on the Carrello tab). The
+  count is on a second line so the total "+ IVA" fits at 360 pt, and the shadow is small enough not to be cut.
+- **Profilo:** a much smaller status badge at the top right; the name wraps instead of being cut.
+- **Shared retry row:** `LoadErrorRow` in `core/widgets`, used by promos and Novità.
+- **Tests:** 26 widget tests, including Novità, its retry, and the cart bar. The cart-sharing test now searches
+  Prodotti for its product and scopes its finders to Prodotti: Home, alive behind it, was matching first.
+
+**Notes**
+- Loading real network photos inside the Flutter test renderer hangs, so visual checks use placeholders.
+- Product names are still the stopgap formatter; the user hasn't decided how names should look.
 
