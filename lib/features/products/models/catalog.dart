@@ -41,6 +41,9 @@ class Catalog {
 
   late final Map<String, Product> _byId = {for (final p in products) p.id: p};
 
+  /// The product with this id (`db-<id>`), if it's still sold.
+  Product? productById(String id) => _byId[id];
+
   Category? categoryById(int id) {
     for (final category in categories) {
       if (category.id == id) return category;

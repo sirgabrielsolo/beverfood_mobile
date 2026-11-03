@@ -9,30 +9,34 @@ as well, so they aren't proposed again.
 
 ## Start here (next session)
 
-State at the end of 2026-11-02:
+State at the end of 2026-11-03:
 - **Built and passing:**
   - **App:** sign-in (A1/B2), profile completion (C2), notices (D1/D2), Profilo (E), promos with banners and the
-    detail page, the "Vai al carrello" bar, and the whole catalogue from the database: Novità, Più popolari, the
-    categories on Home (H2, two rows) and in Prodotti (P1 tabs, Promozioni tab), search and sort on the phone (L1).
-    Runs at 90 Hz on the CPH2399.
-  - **beverfood_web:** the `/api/v1` API (`/catalog`, gzipped), the admin panel (P2) with Clienti app approvals, and
-    the managers' two areas.
-  - **Tests:** 24 widget + 15 unit tests in the app; the web checks are scratch scripts (see beverfood_web's
+    detail page, the whole catalogue from the database (Novità, Più popolari, categories, search, sort), and now the
+    **cart and orders**: Carrello (K1 + notes N1, saved on the phone), Riepilogo ordine (C2), "Ordine inviato",
+    Profilo → I miei ordini and the order page with Riordina (O1). Runs at 90 Hz on the CPH2399.
+  - **beverfood_web:** the `/api/v1` API (now with `/orders`), the admin panel (P2), and the managers' two areas:
+    Ordini agenti (light) and **Ordini clienti** (dark: the same four order tabs for app orders, plus Clienti).
+  - **Tests:** 29 widget + 22 unit tests in the app; the web checks are scratch scripts (see beverfood_web's
     CLAUDE.md, "Checking changes").
-- **Not committed yet** (the user handles git): run `git status` first.
-- **On the user's phone** the user runs the app with `flutter run` against their local beverfood_web, testing a new
-  account (sign-up, the second contact, approval).
+- **Not committed yet** (the user handles git): run `git status` first, in both repos.
+- **Not tried on the phone yet:** the cart and orders. Test them against the local server, not with plain
+  `flutter run` (production has no `/orders` until the user deploys). Locally, run
+  `flask --app app ensure-columns` once first, inside the virtualenv (`python app.py` adds missing tables, never
+  columns): it adds the new `orders`/`order_item` columns. Render runs it before each deploy.
 - **The user planned to set `OTP_SENDER=log` on Render** (codes in Render's logs, so co-workers can register on
   production until an SMS provider exists). Remove it before public launch.
-- **Next task:** Next up, step 3 (the cart page and orders). Product names still use the stopgap `splitProductName`.
+- **Next task:** the user's test of the cart and orders on the phone and in Ordini clienti, then Next up step 4.
 - **Local testing:**
-  - Start the server: `cd ~/projects/beverfood_web && source .venv/bin/activate && python app.py`.
+  - Start the server: `cd ~/projects/beverfood_web && source .venv/bin/activate && python app.py`. The `flask`
+    command also needs the virtualenv active (or `.venv/bin/flask`), else "command not found".
   - Run the app: `flutter run -d <id> --dart-define=API_BASE_URL=http://172.16.25.128:5000` (the PC's LAN IP, which changes with the network; the
     emulator uses `10.0.2.2`). Sign-in codes print in the server terminal.
-  - Approve clients at http://127.0.0.1:5000 → Admin Panel → Clienti app.
+  - Approve clients at http://127.0.0.1:5000 → Admin Panel → Clienti app; managers see app orders in Ordini clienti.
   - The local `app_*` tables were emptied once by mistake, so local test accounts may need registering again.
 - **Production test account:** `+39 300 000 0000` or `admin@beverfoodsrl.it`, code = Render's `APP_TEST_CODE`
-  (the user knows it; don't write it into files).
+  (the user knows it; don't write it into files). Its orders reach the managers like any other: the user deletes them
+  by hand (admin's Ordini, bin).
 
 ## Next up
 
@@ -45,12 +49,10 @@ In order. "(user)" marks what only the user can do.
      Immagini mancanti so the web picks them up.
 2. [x] **Catalogue from the API** (done 2026-11-02): Novità, Più popolari, all products and categories. Still open:
        the product-name format (stopgap `splitProductName`), and a check on the phone (Start here).
-3. [ ] **Cart page and orders from the app.**
-   - The cart lists products and promo lines (with their mix). (The "Vai al carrello" bar is done.)
-   - Checkout writes an order through a new API endpoint, with the client's notes plus each promo's
-     `PromoSelection.orderNote`, and the order linked to the approved client's `erp_client_id`.
-   - Orders appear in the manager's Clienti app area (dark), with the same CSV as the agents' orders.
-   - Test-account orders go to the web user admin@beverfoodsrl.it (the user creates that user).
+3. [x] **Cart page and orders from the app** (done 2026-11-03; see the Log). Still open:
+   - (user) test on the phone, and in Ordini clienti as a manager.
+   - Later, by the user's choice: a transport charge depending on the delivery area (Q2), order emails (F7) and
+     status notifications (F8), payments (Q4).
 4. [ ] **Approval notice** to the client: a push notification (Firebase) and an email.
 5. [ ] **(user) Providers:** SMS (Twilio Verify recommended, WhatsApp later after Meta's business verification), and
        email on `beverfoodsrl.it` (DNS access; Brevo suggested). Then connect them in `client_auth.send_code`. Until
@@ -68,6 +70,7 @@ In order. "(user)" marks what only the user can do.
    - Open asset questions: the white-tinted Home logo, and `no_image.png` (no dark variant).
 
 **Design pages** (the user's choices are recorded in the Log; rejected options shouldn't come back):
+- Cart and orders (K1, N1, C2, O1, M as a copy of Ordini agenti; extras F1–F5): https://claude.ai/artifact/34gcgRRH4mLHMqvC8kdjyb
 - Categories and catalogue: https://claude.ai/artifact/HK4w7qZGNx8wWPHYM7jKsd
 - Promo banners: https://claude.ai/artifact/VMge2md1CKKvRYTuU5PyLJ
 - Promo page and prices: https://claude.ai/artifact/9BYuZ1Gk5yLB5ycY3jzhX3
@@ -594,3 +597,52 @@ In order. "(user)" marks what only the user can do.
   in the same frame (C2's page already did this).
 - Test "an email is added from Profilo on its own page" (back without sending, then the whole flow); `_FakeServer`
   answers `/me/contact/code` and `/me/contact/verify`.
+
+### 2026-11-03 (cart and orders)
+
+**Decisions** (options page https://claude.ai/artifact/34gcgRRH4mLHMqvC8kdjyb)
+- **K1** compact cart list, with a **"Rimuovi"** text link on each row (the user didn't like the page's emoji bin).
+  Removing shows "Annulla" in a message; **no swipe**: the big shops (Amazon "Elimina", Zalando "Rimuovi") use a
+  visible button, and the user found it clearer. The stepper is the cards' (Material bin at 1). "Svuota carrello"
+  in the ⋮ menu, with a confirmation.
+- **N1** notes field in the cart (500 characters), kept with the cart until the order is sent.
+- **C2** review page "Riepilogo ordine", whose product list is a **compact read-only cart without photos**; the same
+  list is used on the order page (**O1**, I miei ordini in Profilo). "Riordina" has no description underneath.
+- **Manager (M):** an exact copy of Ordini agenti (same tabs, cards, CSV, live search, dark), for app orders, plus a
+  fifth tab **"Clienti"** (the former Clienti app list). The area is called **"Ordini clienti"** (choose page and
+  top-bar switch). Only managers process app orders; **admins see them in Ordini**, like agents' orders.
+- **F1** cart saved on the phone; **F3** type a quantity (tap the stepper's number, on cards too); **F4** a product
+  no longer sold is marked "Non più disponibile" (cart) / "Non disponibile" (old order) and left out, **but price
+  changes are applied silently, no notice**; **F5** Riordina; **F6** clients can't cancel orders; F7/F8 later.
+- **Minimum order 150 € net of IVA** (asked: net, not with IVA). No transport charge for now (later, by delivery
+  area); notes only for delivery times; no payment in the app.
+- **Status for clients:** "Inviato" from sending until the manager marks it Evaso, then "Evaso" (In lavorazione
+  isn't shown to clients).
+- **Test-account orders:** not marked; the user deletes them by hand. They carry the web user with the test email
+  (admin@beverfoodsrl.it) as `id_user` when that user exists.
+
+**Done (beverfood_web)**
+- `orders` gains `from_app`, `app_client_id` (SET NULL on account deletion), `app_client_name`,
+  `app_erp_client_id`, `delivery_address`, `app_request_id` (unique, against double sends), `fulfilled_at`;
+  `order_item` gains `price`/`iva` (prices on the day, app orders only) and `promo_note`/`promo_mix`.
+  `ensure_columns()` adds them.
+- `app_orders.py` + `POST/GET /api/v1/orders`, `GET /orders/<id>`: checks approval, active products, quantities
+  1–999, promos once with their mix checked against `promos.py`, the 150 € minimum; `/me` carries `order_minimum`.
+- Manager: `_manager_page(area)` serves both areas; `/manager/clienti` (+ `/results`); fulfil sets `fulfilled_at` and
+  returns to the right area; the CSV takes the app client's ERP id. Cards show the contact line, "(ID …)",
+  "Consegna: …" and each promo's mix under its line; notes keep their line breaks.
+- Admin Ordini shows app orders with a purple "DALL'APP" badge; its search matches the company name.
+- **Checks:** 35 end-to-end checks on a scratch copy of the local tables (refusals, a promo order, idempotency,
+  other clients' orders, both manager areas, CSV, Evaso seen by the client, admin view, account deletion keeping the
+  order), plus screenshots of Ordini clienti and admin Ordini. Scratch schema dropped.
+
+**Done (app)**
+- `CartController` rewritten: product ids + quantities, promos with their mix, notes; saved through `CartStorage`
+  (shared preferences) and restored at launch; `syncCatalog`/`syncPromos` bring it up to date (current prices,
+  unavailable lines, promos whose rule changed must be chosen again). Totals with each product's IVA.
+- Pages: `CartPage` (K1/N1), `CheckoutPage` (`/checkout`), `OrderSentPage` (`/order-sent/:id`), `OrdersPage` and
+  `OrderPage` (`/profile/orders[/:id]`), the quantity sheet; `features/orders/` (model, repository, widgets).
+- **Tests:** 5 new widget tests (send an order end to end, Rimuovi + Annulla, a saved cart with an unavailable
+  product, Riordina, typing a quantity on a card) and 7 unit tests for the cart and promo mixes. Screens rendered and
+  checked in light and dark; that caught the pack shown twice in cart rows and a TextButton losing the app font.
+

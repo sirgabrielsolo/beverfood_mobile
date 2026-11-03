@@ -9,6 +9,7 @@ class Account {
     required this.emailVerified,
     required this.profileEditable,
     this.erpClientId,
+    this.orderMinimum = 150,
     this.reviewNote,
     this.phone,
     this.email,
@@ -29,6 +30,7 @@ class Account {
           AccountStatus.registered,
       isTest: json['is_test'] as bool? ?? false,
       erpClientId: json['erp_client_id'] as int?,
+      orderMinimum: (json['order_minimum'] as num?)?.toDouble() ?? 150,
       reviewNote: json['review_note'] as String?,
       phone: json['phone'] as String?,
       phoneVerified: json['phone_verified'] as bool? ?? false,
@@ -51,6 +53,9 @@ class Account {
 
   /// The client's code in the ERP, assigned on approval.
   final int? erpClientId;
+
+  /// The smallest order, net of IVA.
+  final double orderMinimum;
 
   /// Why the profile was rejected or the account suspended.
   final String? reviewNote;

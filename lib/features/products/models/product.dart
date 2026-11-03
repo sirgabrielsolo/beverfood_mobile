@@ -8,6 +8,7 @@ class Product {
     required this.name,
     required this.price,
     required this.imageUrl,
+    this.iva = 22,
     this.categoryId,
     this.categoryName = '',
     this.format = '',
@@ -30,6 +31,7 @@ class Product {
       id: 'db-${json['id']}',
       name: name,
       price: (json['price'] as num).toDouble(),
+      iva: (json['iva'] as num?)?.toDouble() ?? 22,
       imageUrl: cloudinaryThumbnail(json['image_url'] as String? ?? ''),
       categoryId: json['category_id'] as int?,
       categoryName: category,
@@ -51,9 +53,19 @@ class Product {
   /// The category as the database writes it ("BIRRE").
   final String categoryName;
 
-  /// Price net of IVA.
+  /// The database id, as the order API wants it.
+  int get dbId => int.parse(id.substring(3));
+
+  /// Price net of IVA, and the IVA rate in percent (22, 10, 5 or 4).
   final double price;
+  final double iva;
   final String imageUrl;
+
+  /// The name without its pack ("Beck's bottiglia"), where the pack is
+  /// shown on its own line (the cart, the order summary).
+  String get shortName => format.isNotEmpty && name.endsWith(' $format')
+      ? name.substring(0, name.length - format.length - 1)
+      : name;
 
   /// Package size, e.g. `75 cl` or `500 ml · 24 pz`.
   final String format;

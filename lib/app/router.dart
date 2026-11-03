@@ -11,7 +11,12 @@ import 'package:beverfood_mobile/features/auth/presentation/contact_entry_page.d
 import 'package:beverfood_mobile/features/auth/presentation/splash_page.dart';
 import 'package:beverfood_mobile/features/auth/presentation/welcome_page.dart';
 import 'package:beverfood_mobile/features/cart/presentation/cart_page.dart';
+import 'package:beverfood_mobile/features/cart/presentation/checkout_page.dart';
 import 'package:beverfood_mobile/features/home/presentation/home_page.dart';
+import 'package:beverfood_mobile/features/orders/models/order.dart';
+import 'package:beverfood_mobile/features/orders/presentation/order_page.dart';
+import 'package:beverfood_mobile/features/orders/presentation/order_sent_page.dart';
+import 'package:beverfood_mobile/features/orders/presentation/orders_page.dart';
 import 'package:beverfood_mobile/features/products/models/product_sort.dart';
 import 'package:beverfood_mobile/features/products/presentation/products_page.dart';
 import 'package:beverfood_mobile/features/profile/presentation/profile_page.dart';
@@ -50,6 +55,16 @@ abstract final class AppRoutes {
 
   /// A promo's page. Push it with the [Promo] as `extra` to skip reloading it.
   static String promo(int id) => '/promo/$id';
+
+  /// The order review (C2), full screen; pushed from the cart.
+  static const checkout = '/checkout';
+
+  /// The confirmation after sending, with the [Order] as `extra`.
+  static String orderSent(int id) => '/order-sent/$id';
+
+  /// "I miei ordini" and one order, in the Profilo tab.
+  static const orders = '/profile/orders';
+  static String order(int id) => '$orders/$id';
 
   /// Location of the products page, optionally pre-filtered: a search, a
   /// category id (`Category.id`; none is "Tutti") and a sort (none is the
@@ -150,6 +165,17 @@ GoRouter createRouter(AuthController auth) {
           promo: state.extra is Promo ? state.extra as Promo : null,
         ),
       ),
+      GoRoute(
+        path: AppRoutes.checkout,
+        builder: (context, state) => const CheckoutPage(),
+      ),
+      GoRoute(
+        path: '/order-sent/:id',
+        builder: (context, state) => OrderSentPage(
+          orderId: int.tryParse(state.pathParameters['id']!) ?? -1,
+          order: state.extra is Order ? state.extra as Order : null,
+        ),
+      ),
       // One branch per bottom navigation tab; each keeps its own state.
       StatefulShellRoute(
         builder: (context, state, navigationShell) =>
@@ -201,6 +227,21 @@ GoRouter createRouter(AuthController auth) {
               GoRoute(
                 path: AppRoutes.profile,
                 builder: (context, state) => const ProfilePage(),
+                routes: [
+                  GoRoute(
+                    path: 'orders',
+                    builder: (context, state) => const OrdersPage(),
+                    routes: [
+                      GoRoute(
+                        path: ':id',
+                        builder: (context, state) => OrderPage(
+                          orderId:
+                              int.tryParse(state.pathParameters['id']!) ?? -1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),

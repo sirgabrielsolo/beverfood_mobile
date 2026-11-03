@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:beverfood_mobile/core/formatting/product_name.dart';
 import 'package:beverfood_mobile/features/promotions/models/promo.dart';
 
 /// What the client picked for a promo's freely mixed groups (`PromoMode.total`,
@@ -105,6 +106,81 @@ class PromoSelection {
     if (parts.isEmpty) return null;
     return '${promo.name} — ${parts.join('; ')}';
   }
+
+  /// The choices, to keep the cart across restarts: per group, product id
+  /// → count (empty for fixed groups).
+  List<Map<String, int>> toJson() => [
+    for (final counts in _counts)
+      {for (final MapEntry(:key, :value) in counts.entries) '$key': value},
+  ];
+
+  /// The choices saved by [toJson], or listed by `mix` (an order's freely
+  /// mixed groups: `[{group, product_id, quantity}]`), applied to [promo] as
+  /// it is now. Counts the rule no longer allows are dropped, so the result
+  /// may be incomplete: the promo then needs choosing again.
+  factory PromoSelection.restore(Promo promo, {Object? saved, Object? mix}) {
+    var selection = PromoSelection(promo);
+    void apply(int group, int productId, int count) {
+      if (group < 0 || group >= promo.groups.length) return;
+      final g = promo.groups[group];
+      if (g.mode != PromoMode.total) return;
+      if (!g.products.any((p) => p.id == productId)) return;
+      selection = selection.withCount(
+        group,
+        productId,
+        selection.countOf(group, productId) + count,
+      );
+    }
+
+    if (saved is List) {
+      for (final (group, counts) in saved.indexed) {
+        if (counts is! Map) continue;
+        for (final MapEntry(:key, :value) in counts.entries) {
+          final id = int.tryParse('$key');
+          if (id != null && value is int) apply(group, id, value);
+        }
+      }
+    }
+    if (mix is List) {
+      for (final entry in mix.whereType<Map>()) {
+        final (group, id, count) = (
+          entry['group'],
+          entry['product_id'],
+          entry['quantity'],
+        );
+        if (group is int && id is int && count is int) apply(group, id, count);
+      }
+    }
+    return selection;
+  }
+
+  /// The freely mixed groups' choices, as the order API wants them.
+  List<Map<String, int>> get apiMix => [
+    for (final (i, group) in promo.groups.indexed)
+      if (group.mode == PromoMode.total)
+        for (final product in group.products)
+          if (countOf(i, product.id) > 0)
+            {
+              'group': i,
+              'product_id': product.id,
+              'quantity': countOf(i, product.id),
+            },
+  ];
+
+  /// What the bundle holds, one line per group for the cart and the order
+  /// summary: "6 × Lilia Naturale, 4 × Lilia Gas", "Omaggio: 3 × Lilia
+  /// Naturale".
+  List<String> get contents => [
+    for (final (i, group) in promo.groups.indexed)
+      if (group.products.any((p) => countOf(i, p.id) > 0))
+        (group.role == PromoRole.free ? 'Omaggio: ' : '') +
+            [
+              for (final product in group.products)
+                if (countOf(i, product.id) > 0)
+                  '${countOf(i, product.id)} × '
+                      '${splitProductName(product.name).name}',
+            ].join(', '),
+  ];
 
   /// Whether [other] holds the same choices for the same promo.
   bool sameChoicesAs(PromoSelection other) {

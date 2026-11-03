@@ -29,6 +29,16 @@ class ProfilePage extends StatelessWidget {
         children: [
           if (account != null) ...[
             _AccountCard(account: account),
+            const _SectionHeader('Ordini'),
+            _Group(
+              children: [
+                _InfoRow(
+                  title: 'I miei ordini',
+                  value: '',
+                  onTap: () => context.go(AppRoutes.orders),
+                ),
+              ],
+            ),
             const _SectionHeader('Account'),
             _AccountRows(account: account),
           ],

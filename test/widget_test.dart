@@ -13,6 +13,8 @@ import 'package:beverfood_mobile/app/theme/theme_mode_controller.dart';
 import 'package:beverfood_mobile/core/network/api_client.dart';
 import 'package:beverfood_mobile/core/widgets/load_error_row.dart';
 import 'package:beverfood_mobile/features/auth/data/token_store.dart';
+import 'package:beverfood_mobile/features/auth/presentation/widgets/auth_widgets.dart';
+import 'package:beverfood_mobile/features/cart/data/cart_storage.dart';
 import 'package:beverfood_mobile/features/products/presentation/products_page.dart';
 import 'package:beverfood_mobile/features/home/presentation/widgets/section_header.dart';
 import 'package:beverfood_mobile/features/home/presentation/widgets/product_rail.dart';
@@ -31,6 +33,7 @@ Future<_FakeServer> _pumpApp(
   ThemeModeController controller, {
   _FakeServer? server,
   bool signedIn = true,
+  CartStorage? cartStorage,
 }) async {
   server ??= _FakeServer();
   await tester.pumpWidget(
@@ -38,6 +41,7 @@ Future<_FakeServer> _pumpApp(
       themeModeController: controller,
       apiClient: ApiClient(client: server.client, baseUrl: 'https://test'),
       tokenStore: MemoryTokenStore(signedIn ? 'token' : null),
+      cartStorage: cartStorage ?? MemoryCartStorage(),
     ),
   );
   return server;
@@ -162,6 +166,42 @@ class _FakeServer {
   final List<int> popular;
   Map<String, Object?>? sentProfile;
 
+  /// Orders sent (`POST /orders` bodies) and the orders the client has, as
+  /// the API returns them, newest first.
+  final sentOrders = <Map<String, Object?>>[];
+  final orders = <Map<String, Object?>>[];
+
+  /// The order a `POST /orders` makes: from the products and promos sent.
+  Map<String, Object?> _order(int id, Map<String, Object?> body) {
+    final products = {for (final p in _productsJson) p['id']: p};
+    final promos = {for (final p in _promosJson['promos']!) p['id']: p};
+    final lines = [
+      for (final item in (body['items']! as List).cast<Map<String, Object?>>())
+        if (products[item['product_id']] ?? promos[item['product_id']]
+            case final p?)
+          {
+            'product_id': p['id'],
+            'name': p['name'],
+            'quantity': item['quantity'],
+            'price': p['price'],
+            'iva': p['iva'],
+            'is_promo': promos.containsKey(p['id']),
+            'available': true,
+            'mix': item['mix'] ?? const [],
+          },
+    ];
+    final subtotal = lines.fold(
+      0.0,
+      (sum, l) => sum + (l['price']! as double) * (l['quantity']! as int),
+    );
+    return _orderJson(
+      id: id,
+      lines: lines,
+      subtotal: subtotal,
+      notes: body['notes'] as String?,
+    );
+  }
+
   late final client = MockClient((request) async {
     final path = request.url.path;
     final body = request.body.isEmpty
@@ -249,6 +289,26 @@ class _FakeServer {
         }
         account = {...account, 'email': body['email'], 'email_verified': true};
         return _json({'client': account});
+      case ('POST', '/api/v1/orders'):
+        sentOrders.add(body);
+        final order = _order(500 + sentOrders.length, body);
+        orders.insert(0, order);
+        return _json({'order': order}, 201);
+      case ('GET', '/api/v1/orders'):
+        return _json({
+          'orders': [
+            for (final o in orders) {...o}..remove('lines'),
+          ],
+        });
+      case ('GET', final p) when p.startsWith('/api/v1/orders/'):
+        final id = int.parse(p.split('/').last);
+        for (final o in orders) {
+          if (o['id'] == id) return _json({'order': o});
+        }
+        return _json({
+          'error': 'Ordine non trovato.',
+          'code': 'not_found',
+        }, 404);
       case ('PUT', '/api/v1/me/profile'):
         sentProfile = body;
         account = {..._accountJson(status: 'pending')};
@@ -260,6 +320,29 @@ class _FakeServer {
   static http.Response _json(Object body, [int status = 200]) =>
       http.Response.bytes(utf8.encode(jsonEncode(body)), status);
 }
+
+/// An order as `/api/v1/orders/<id>` returns it.
+Map<String, Object?> _orderJson({
+  required int id,
+  required List<Map<String, Object?>> lines,
+  required double subtotal,
+  String status = 'sent',
+  String? notes,
+}) => {
+  'id': id,
+  'created_at': '2026-11-03T18:28:00',
+  'status': status,
+  'fulfilled_at': status == 'fulfilled' ? '2026-11-04T10:02:00' : null,
+  'item_count': lines.fold<int>(0, (sum, l) => sum + (l['quantity']! as int)),
+  'line_count': lines.length,
+  'subtotal': subtotal,
+  'vat': subtotal * 0.22,
+  'total': subtotal * 1.22,
+  'notes': notes,
+  'delivery_address': 'Via Roma 12, 10121 Torino',
+  'company_name': 'Bar Aurora snc',
+  'lines': lines,
+};
 
 /// A promo picked freely (2 paid + 1 free among two waters), one with fixed
 /// products, and one the server has no texts or banner for yet.
@@ -1136,4 +1219,217 @@ void main() {
       expect(find.bySemanticsLabel(bar), findsNothing);
     },
   );
+
+  testWidgets('an order is sent from the cart and found in I miei ordini', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final server = await _pumpApp(tester, await _themeModeController());
+    await tester.pumpAndSettle();
+
+    // The gin, first in Novità: 99,99 €, under the 150 € minimum.
+    await tester.tap(find.bySemanticsLabel('Aggiungi al carrello').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel(RegExp('^Vai al carrello')));
+    await tester.pumpAndSettle();
+    expect(find.text('Gin Nordes'), findsOneWidget);
+    expect(
+      find.text('Ordine minimo 150,00 € + IVA: mancano 50,01 €.'),
+      findsOneWidget,
+    );
+    final proceed = find.widgetWithText(WideButton, 'Procedi · 99,99 € + IVA');
+    expect(tester.widget<WideButton>(proceed).onPressed, isNull);
+
+    // Two, typed on the number keypad.
+    await tester.tap(find.bySemanticsLabel('Quantità 1'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '2');
+    await tester.tap(find.widgetWithText(WideButton, 'Conferma'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Orari di consegna, accesso, richieste…'),
+      'Consegna dopo le 10',
+    );
+    await tester.tap(
+      find.widgetWithText(WideButton, 'Procedi · 199,98 € + IVA'),
+    );
+    await tester.pumpAndSettle();
+
+    // The review page: the compact list, the notes, the totals with IVA.
+    expect(find.text('Riepilogo ordine'), findsOneWidget);
+    expect(find.text('3 l · 2 × 99,99 €'), findsOneWidget);
+    expect(find.text('Consegna dopo le 10'), findsOneWidget);
+    await tester.tap(
+      find.widgetWithText(WideButton, 'Invia ordine · 243,98 € IVA incl.'),
+    );
+    await tester.pumpAndSettle();
+
+    final sent = server.sentOrders.single;
+    expect(sent['items'], [
+      {'product_id': 73284, 'quantity': 2},
+    ]);
+    expect(sent['notes'], 'Consegna dopo le 10');
+    expect((sent['request_id']! as String).length, 32);
+    expect(find.text('Ordine inviato'), findsOneWidget);
+    expect(find.textContaining('Ordine n. 501'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(WideButton, "Vedi l'ordine"));
+    await tester.pumpAndSettle();
+    expect(find.text('Ordine n. 501'), findsOneWidget);
+    expect(find.text('INVIATO'), findsOneWidget);
+    expect(find.text('3 l · 2 × 99,99 €'), findsOneWidget);
+    expect(find.text('Consegna dopo le 10'), findsOneWidget);
+
+    // Back: the list, and the cart emptied by the order.
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('I miei ordini'), findsOneWidget);
+    expect(find.text('Ordine n. 501'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('^Vai al carrello')), findsNothing);
+  });
+
+  testWidgets('a product is removed from the cart and put back with Annulla', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpApp(tester, await _themeModeController());
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('Aggiungi al carrello').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel(RegExp('^Vai al carrello')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.bySemanticsLabel('Rimuovi Gin Nordes'));
+    await tester.pumpAndSettle();
+    expect(find.text('Il tuo carrello è vuoto'), findsOneWidget);
+    await tester.tap(find.text('Annulla'));
+    await tester.pumpAndSettle();
+    expect(find.text('Gin Nordes'), findsOneWidget);
+  });
+
+  testWidgets('a saved cart comes back; a product no longer sold is left out', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final storage = MemoryCartStorage({
+      'lines': [
+        ['db-6121', 9, "Beck's bottiglia 330 ml · 24 pz"],
+        ['db-999', 3, 'Birra Sparita 33 cl'],
+      ],
+      'promos': [
+        {
+          'id': 92,
+          'name': 'Acqua Lilia 2+1',
+          'counts': [
+            {'5031': 2},
+            {'5032': 1},
+          ],
+        },
+      ],
+      'notes': 'Citofono rotto',
+    });
+    await _pumpApp(tester, await _themeModeController(), cartStorage: storage);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Carrello').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Birra Sparita 33 cl'), findsOneWidget);
+    expect(find.text('Non più disponibile'), findsOneWidget);
+    expect(find.text('Acqua Lilia 2+1'), findsOneWidget);
+    expect(find.text('2 × Lilia Naturale'), findsOneWidget);
+    expect(find.text('Citofono rotto'), findsOneWidget);
+    // 9 Beck's + the promo; the beer no longer sold isn't counted.
+    expect(find.textContaining('10 articoli'), findsOneWidget);
+    expect(
+      find.widgetWithText(WideButton, 'Procedi · 174,38 € + IVA'),
+      findsOneWidget,
+    );
+    expect(storage.saved!['notes'], 'Citofono rotto');
+  });
+
+  testWidgets('Riordina puts an order back in the cart, skipping what is gone', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final server = _FakeServer();
+    server.orders.add(
+      _orderJson(
+        id: 480,
+        status: 'fulfilled',
+        subtotal: 92.1,
+        lines: [
+          {
+            'product_id': 6121,
+            'name': "BECK'S BT 330 ML 24 PZ",
+            'quantity': 5,
+            'price': 18.42,
+            'iva': 22.0,
+            'is_promo': false,
+            'available': true,
+            'mix': const [],
+          },
+          {
+            'product_id': 999,
+            'name': 'BIRRA SPARITA 33 CL',
+            'quantity': 2,
+            'price': 20.0,
+            'iva': 22.0,
+            'is_promo': false,
+            'available': false,
+            'mix': const [],
+          },
+        ],
+      ),
+    );
+    await _pumpApp(tester, await _themeModeController(), server: server);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Profilo').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('I miei ordini'));
+    await tester.pumpAndSettle();
+    expect(find.text('EVASO'), findsOneWidget);
+
+    await tester.tap(find.text('Ordine n. 480'));
+    await tester.pumpAndSettle();
+    expect(find.text('Non disponibile'), findsOneWidget);
+    await tester.tap(find.widgetWithText(WideButton, 'Riordina'));
+    await tester.pumpAndSettle();
+
+    // On the cart, with the beer no longer sold named.
+    expect(find.text("Beck's bottiglia"), findsOneWidget);
+    expect(find.textContaining('5 articoli'), findsOneWidget);
+    expect(
+      find.text(
+        '1 prodotto aggiunto al carrello. Non più disponibili: Birra Sparita.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a quantity is typed by tapping the number on a card', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpApp(tester, await _themeModeController());
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('Aggiungi al carrello').first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.bySemanticsLabel('Quantità 1').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Quantità'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).last, '24');
+    await tester.tap(find.widgetWithText(WideButton, 'Conferma'));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('Quantità 24'), findsWidgets);
+    expect(
+      find.bySemanticsLabel(RegExp('^Vai al carrello, 24 articoli')),
+      findsOneWidget,
+    );
+  });
 }

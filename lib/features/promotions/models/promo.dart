@@ -62,6 +62,9 @@ class Promo {
 
   /// What the promo covers: the products paid and the ones given free.
   final List<PromoGroup> groups;
+
+  /// "Acqua Lilia 10+3", for the cart and the order summary.
+  String get displayName => highlight.isEmpty ? title : '$title $highlight';
 }
 
 enum PromoRole { paid, free }

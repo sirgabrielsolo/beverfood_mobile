@@ -6,6 +6,7 @@ import 'package:beverfood_mobile/app/theme/app_radii.dart';
 import 'package:beverfood_mobile/core/widgets/app_network_image.dart';
 import 'package:beverfood_mobile/core/widgets/net_price_text.dart';
 import 'package:beverfood_mobile/features/cart/data/cart_controller.dart';
+import 'package:beverfood_mobile/features/cart/presentation/widgets/quantity_sheet.dart';
 import 'package:beverfood_mobile/features/products/data/favourites_controller.dart';
 import 'package:beverfood_mobile/features/products/models/product.dart';
 
@@ -249,6 +250,7 @@ class _CartBar extends StatelessWidget {
                 quantity: quantity,
                 onRemove: () => cart.removeOne(product),
                 onAdd: () => cart.add(product),
+                onEdit: () => _editQuantity(context, cart),
               );
             }
             final slide = t * ProductCard._cartBarHeight;
@@ -275,6 +277,7 @@ class _CartBar extends StatelessWidget {
                       quantity: inCart ? quantity : 1,
                       onRemove: () => cart.removeOne(product),
                       onAdd: () => cart.add(product),
+                      onEdit: () => _editQuantity(context, cart),
                     ),
                   ),
               ],
@@ -286,6 +289,16 @@ class _CartBar extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Types a quantity with the number keypad (F3); 0 takes it out.
+  Future<void> _editQuantity(BuildContext context, CartController cart) async {
+    final quantity = await askQuantity(
+      context,
+      productName: product.name,
+      current: cart.quantityOf(product),
+    );
+    if (quantity != null) cart.setQuantity(product, quantity);
   }
 
   /// A layer of the bar moved by [dy]; taps and semantics only when [active].
@@ -357,12 +370,16 @@ class _Stepper extends StatelessWidget {
     required this.quantity,
     required this.onRemove,
     required this.onAdd,
+    required this.onEdit,
   });
 
   final double alpha;
   final int quantity;
   final VoidCallback onRemove;
   final VoidCallback onAdd;
+
+  /// Tapping the number: type a quantity.
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -384,7 +401,17 @@ class _Stepper extends StatelessWidget {
           onTap: onRemove,
         ),
         Expanded(
-          child: _QuantityText(quantity: quantity, color: color),
+          child: Semantics(
+            button: true,
+            label: 'Quantità $quantity',
+            hint: 'Tocca per scriverla',
+            excludeSemantics: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onEdit,
+              child: _QuantityText(quantity: quantity, color: color),
+            ),
+          ),
         ),
         _StepperButton(
           icon: Icons.add_rounded,

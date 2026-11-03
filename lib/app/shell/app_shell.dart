@@ -104,7 +104,7 @@ class _CartBarSlot extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
               child: CartBar(
                 itemCount: cart.itemCount,
-                total: cart.total,
+                total: cart.subtotal,
                 onTap: onOpenCart,
               ),
             )
